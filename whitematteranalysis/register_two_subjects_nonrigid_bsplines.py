@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 """ register.py
 
 implementation of fiber tractography registration (group)
@@ -7,41 +9,28 @@ class RegisterTractographyNonrigid
 
 """
 
-try:
-    import scipy.optimize
-    USE_SCIPY = 1
-except ImportError:
-    USE_SCIPY = 0
-    print("<congeal.py> Failed to import  scipy.optimize, cannot align or register.")
-    print("<congeal.py> Please install  scipy.optimize for this functionality.")
-
-import numpy
+import os
 import sys
 import time
+
+import numpy as np
+import scipy.optimize
 import vtk
 import vtk.util.numpy_support
-import os
+
+import whitematteranalysis as wma
 
 # debug only
 #import resource
 
-try:
-    from joblib import Parallel, delayed
-    USE_PARALLEL = 1
-except ImportError:
-    USE_PARALLEL = 0
-    print("<congeal.py> Failed to import joblib, cannot multiprocess.")
-    print("<congeal.py> Please install joblib for this functionality.")
-
-import whitematteranalysis as wma
 
 class RegisterTractographyNonrigid(wma.register_two_subjects.RegisterTractography):
 
     def constraint(self, x_current):
         # Make sure the optimizer is searching in a reasonable region.
         # TEST: Don't let the translations grow too large
-        #penalty = 10.0 - numpy.mean(numpy.abs(x_current))
-        penalty = 30.0 - numpy.mean(numpy.abs(x_current * 0.01))
+        #penalty = 10.0 - np.mean(np.abs(x_current))
+        penalty = 30.0 - np.mean(np.abs(x_current * 0.01))
 
         # progress report sometimes
         
@@ -54,7 +43,7 @@ class RegisterTractographyNonrigid(wma.register_two_subjects.RegisterTractograph
             self.total_time = time.time() - self.start_time
             #print iters, "/", self.maxfun, "Total time:", self.total_time, "Last iters:", elapsed_time, "Per iter:", elapsed_time / print_every, "Memory:", resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
             progress_file = open(self.progress_filename, 'a')
-            print(iters, "/", self.maxfun, "Total time:", self.total_time, "Last iters:", elapsed_time, "Per iter:", elapsed_time / print_every, "Memory:", resource.getrusage(resource.RUSAGE_SELF).ru_maxrss, file=progress_file)
+            print(f"{iters} / {self.maxfun} Total time: {self.total_time} Last iters: {elapsed_time} Per iter: {elapsed_time / print_every} Memory: {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss}", file=progress_file)
             progress_file.close()    
         return penalty
     
@@ -108,7 +97,7 @@ class RegisterTractographyNonrigid(wma.register_two_subjects.RegisterTractograph
         #self.scaling = 0.05
         
         # keep track of the best objective we have seen so far to return that when computation stops.
-        self.minimum_objective = numpy.inf
+        self.minimum_objective = np.inf
 
         # choice of optimization method
         #self.optimizer = "Powell"
@@ -117,7 +106,7 @@ class RegisterTractographyNonrigid(wma.register_two_subjects.RegisterTractograph
 
     def initialize_nonrigid_grid(self):
         res = self.nonrigid_grid_resolution
-        self.displacement_field_numpy = numpy.zeros(res*res*res*3)
+        self.displacement_field_numpy = np.zeros(res*res*res*3)
         #self.displacement_field_vtk = numpy_support.numpy_to_vtk(num_array=NumPy_data.ravel(), deep=True, array_type=vtk.VTK_FLOAT)
         
     def objective_function(self, current_x):
@@ -151,7 +140,7 @@ class RegisterTractographyNonrigid(wma.register_two_subjects.RegisterTractograph
             self.constraint(current_x)
 
         if self.verbose:
-            print("O:",  obj, "X:", scaled_current_x)
+            print(f"O: {obj} X: {scaled_current_x}")
         #print "X:", self._x_opt
 
         # Stop the optimizer if needed
@@ -164,7 +153,7 @@ class RegisterTractographyNonrigid(wma.register_two_subjects.RegisterTractograph
         """Transform in_array of R,A,S by transform (a list of source points).  Transformed fibers are returned.
         """
         (dims, number_of_fibers, points_per_fiber) = in_array.shape
-        out_array = numpy.zeros(in_array.shape)
+        out_array = np.zeros(in_array.shape)
 
         vtktrans = convert_transform_to_vtk(transform)
         #print "2:", vtktrans
@@ -186,7 +175,7 @@ class RegisterTractographyNonrigid(wma.register_two_subjects.RegisterTractograph
         ## uncomment for testing only
         ## # convert it back to a fiber object and render it
         ## global __render_count
-        ## if (numpy.mod(__render_count, 500) == 0) & False:
+        ## if (np.mod(__render_count, 500) == 0) & False:
         ##     fiber_array = wma.fibers.FiberArray()
         ##     fiber_array.fiber_array_r = out_array[0,:,:]
         ##     fiber_array.fiber_array_a = out_array[1,:,:]
@@ -207,13 +196,13 @@ class RegisterTractographyNonrigid(wma.register_two_subjects.RegisterTractograph
         compute). Then call compute several times, using different
         parameters for the class, for example first just for
         translation."""
-        print("OPTIMIZER:", self.optimizer)
+        print(f"OPTIMIZER: {self.optimizer}")
         self.start_time = time.time()
         self.total_time = 0.0
-        self.progress_filename = os.path.join(self.output_directory, "log"+self.process_id_string+".log")
+        self.progress_filename = os.path.join(self.output_directory, f"log{self.process_id_string}log")
         print(self.progress_filename)
         progress_file = open(self.progress_filename, 'w')
-        print("Starting computation, time:", self.start_time, file=progress_file)
+        print(f"Starting computation, time: {self.start_time}", file=progress_file)
         progress_file.close()
         # subject data must be input first. No check here for speed
         #self.fixed = None
@@ -248,18 +237,18 @@ class RegisterTractographyNonrigid(wma.register_two_subjects.RegisterTractograph
             ren = wma.render.render(pd2, number_of_fibers_fixed, verbose=False)
             # save low-res images for speed
             ren.magnification = 3
-            ren.save_views(self.output_directory, 'fixed_brain_' + self.process_id_string)
+            ren.save_views(self.output_directory, f'fixed_brain_{self.process_id_string}')
             del ren
                 
         self.iterations += 1
-        self.final_transform = numpy.zeros(self.initial_transform.shape)
+        self.final_transform = np.zeros(self.initial_transform.shape)
 
         if self.verbose:
-            print("<congeal.py> Initial value for X:", self.initial_transform)
+            print(f"<{os.path.basename(__file__)}> Initial value for X: {self.initial_transform}")
 
         progress_file = open(self.progress_filename, 'a')
         self.total_time = time.time() - self.start_time
-        print("INITIAL transform shape", self.initial_transform.shape, "Init time:", self.total_time, file=progress_file)
+        print(f"INITIAL transform shape {self.initial_transform.shape} Init time: {self.total_time}", file=progress_file)
         progress_file.close()
 
         # initialize time for objective function computations
@@ -267,7 +256,7 @@ class RegisterTractographyNonrigid(wma.register_two_subjects.RegisterTractograph
 
         if self.optimizer == "Cobyla":
 
-            print("INITIAL transform shape", self.initial_transform.shape)
+            print(f"INITIAL transform shape {self.initial_transform.shape}")
             # Optimize using cobyla. Allows definition of initial and
             # final step size scales (rhos), as well as constraints.  Here
             # we use the constraints to encourage that the transform stays a transform.
@@ -311,7 +300,7 @@ class RegisterTractographyNonrigid(wma.register_two_subjects.RegisterTractograph
                                                                            epsilon=self.final_step * self.scaling,
                                                                            iprint=1)
             except:
-                print("EXCEPTION WAS CAUGHT, total objectives:", self.objective_computations)
+                print(f"EXCEPTION WAS CAUGHT, total objectives: {self.objective_computations}")
             #print f, dict
 
         elif self.optimizer == "Powell":
@@ -326,18 +315,19 @@ class RegisterTractographyNonrigid(wma.register_two_subjects.RegisterTractograph
                                                                             maxiter=self.maxfun,
                                                                             disp=1, full_output=True)
 
-            print("TRANS:", self.final_transform, "FLAG:", warnflag)
+            print(f"TRANS: {self.final_transform} FLAG: {warnflag}")
 
         else:
-            print("Unknown optimizer.")
+            raise NotImplementedError(
+                f"Workflow not implemented for optimizer: {self.optimizer}.")
 
         progress_file = open(self.progress_filename, 'a')
         self.total_time = time.time() - self.start_time
-        print("Done optimizing. TOTAL TIME:", self.total_time, file=progress_file)
+        print(f"Done optimizing. TOTAL TIME: {self.total_time}", file=progress_file)
         progress_file.close()
 
         if self.verbose:
-            print("O:", self.objective_function_values)
+            print(f"O: {self.objective_function_values}")
 
         # Return output transforms from this iteration
         return self.final_transform
@@ -379,7 +369,7 @@ def convert_transform_to_vtk(transform):
     # This code uses a grid of 240mm x 240mm x 240mm
     #spacing origin extent
     num_vectors = len(transform) / 3
-    dims = round(numpy.power(num_vectors, 1.0/3.0))
+    dims = round(np.power(num_vectors, 1.0/3.0))
     # This MUST correspond to the size used in congeal_multisubject update_nonrigid_grid
     #size_mm = 240.0
     size_mm = 200.0

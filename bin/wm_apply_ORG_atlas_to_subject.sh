@@ -9,28 +9,29 @@ Compulsory arguments:
      -o:  Output directory to save all fiber clustering outputs.
      -a:  Path to the ORG atlas (the anatomically curated atlas ORG-800FC-100HCP), within which there should be 
           two folders named: ORG-RegAtlas-100HCP and ORG-800FC-100HCP 
-     -s:  Path to 3D Slicer, e.g., under MacOS, it is /Applications/Slicer.app/Contents/MacOS/Slicer
+     -s:  Path to 3D Slicer, e.g., under macOS, it is /Applications/Slicer.app/Contents/MacOS/Slicer
 Optional arguments:
+     -t:  apply a transformation file to match the data to the adult brain size of the atlas.
      -r:  whole brain tractography registration mode (default = 'rig')
-            rig: rigid_affine_fast : this enables a rough tractography registraion. This mode in general 
+            rig: rigid_affine_fast : this enables a rough tractography registration. This mode in general
                                    applicable to tractography data generated from different dMRI 
                                    acquisitions and different populations (such as babies)
             nonrig: affine + nonrigid (2 stages) : this enables nonrigid deformations of the fibers. This mode
-                                              needs the input tractography to be similar to the atals tractography, 
-                                              e.g. two-tensor UKF tractography + HCP dMRI acquisiton. 
-     -n:  Number of threads (default = 1). If mutiple cores are available, recommended setting is 4. 
+                                              needs the input tractography to be similar to the atlas tractography,
+                                              e.g. two-tensor UKF tractography + HCP dMRI acquisition.
+     -n:  Number of threads (default = 1). If multiple cores are available, recommended setting is 4.
           Increasing the number of threads does not speed up too much, but it requires more computational resources.) 
      -x:  If the job is being run in an environment without a X client, a virtual X server environment is needed (for 
            transforming fiber clusters in the atlas space back to the tractography space using 3D Slicer). Use value 1 
            to indicate the usage of a virtual X server (default 0).
      -d: Export diffusion tensor measurements for each fiber cluster (or fiber tract). Note that diffusion tensor 
          (or other diffusion measurements) must be stored in the input VTK file. If this is specified, -m needs to be provided.
-     -m: Path to the FiberTractMeasurements module in SlicerDMRI. For example, in 3D Slicer 4.11 stable release under MacOS, 
+     -m: Path to the FiberTractMeasurements module in SlicerDMRI. For example, in 3D Slicer 4.11 stable release under macOS,
          the CLI module path is:
            /Applications/Slicer.app/Contents/Extensions-28264/SlicerDMRI/lib/Slicer-4.11/cli-modules/FiberTractMeasurements
      -c Clean the internal temporary files (default : 0)
             0 : keep all files
-            1 : mininal removal : initial bilateral clusters, transformed bilateral clusters
+            1 : minimal removal : initial bilateral clusters, transformed bilateral clusters
             2 : maximal removal : remove registration temp files, initial bilateral clusters, outlier removed bilateral clusters, transformed bilateral clusters
 
 Example:
@@ -51,8 +52,8 @@ function reportMappingParameters {
  Input tractography:          $InputTractography
  Output directory:            $OutputDir
  ORG atlas folder:            $AtlasBaseFolder
- 3D Slier:                    $SlicerPath
- Registraion mode:            $RegMode
+ 3D Slicer:                   $SlicerPath
+ Registration mode:           $RegMode
  Number of threads:           $NumThreads
  virtual X server:            $VX
  Export dMRI measures:        $DiffMeasure
@@ -63,33 +64,35 @@ function reportMappingParameters {
 REPORTMAPPINGPARAMETERS
 }
 
-while getopts ":hi:i:o:a:s:n:r:x:d:m:c:" opt; do
-  case $opt in
-  	h) Usage; exit 0
-    ;;
-    i) InputTractography="$OPTARG"
-    ;;
-    o) OutputDir="$OPTARG"
-    ;;
-    a) AtlasBaseFolder="$OPTARG"
-    ;;
-    s) SlicerPath="$OPTARG"
-    ;;
-    r) RegMode="$OPTARG"
-	;;
-    n) NumThreads="$OPTARG"
-	;;
-    x) VX="$OPTARG"
-    ;;
-    d) DiffMeasure="$OPTARG"
-    ;;
-    m) FiberTractMeasurementsCLI="$OPTARG"
-    ;;
-    c) CleanFiles="$OPTARG"
-    ;;
-    \?) echo "\nERROR: Invalid option -$OPTARG"; echo ""; Usage
-    ;;
-  esac
+while getopts ":hi:i:o:a:s:n:r:t:x:d:m:c:" opt; do
+	case $opt in
+		h) Usage; exit 0
+		;;
+		i) InputTractography="$OPTARG"
+		;;
+		o) OutputDir="$OPTARG"
+		;;
+		a) AtlasBaseFolder="$OPTARG"
+		;;
+		s) SlicerPath="$OPTARG"
+		;;
+		r) RegMode="$OPTARG"
+		;;
+		t) TfmFile="$OPTARG"
+		;;
+		n) NumThreads="$OPTARG"
+		;;
+		x) VX="$OPTARG"
+		;;
+		d) DiffMeasure="$OPTARG"
+		;;
+		m) FiberTractMeasurementsCLI="$OPTARG"
+		;;
+		c) CleanFiles="$OPTARG"
+		;;
+		\?) echo "\nERROR: Invalid option -$OPTARG"; echo ""; Usage
+		;;
+	esac
 done
 
 if ! [[ ! "$RegMode" ]] ; then
@@ -110,7 +113,7 @@ if [ -z "$VX" ] ; then
 	VX=0
 else
 	if [[ $VX -lt 1 ]]; then
-	    VX=0
+		VX=0
 	else
 		VX=1
 	fi
@@ -121,21 +124,23 @@ if [ -z "$DiffMeasure" ] ; then
 	FiberTractMeasurementsCLI=None
 else
 	if [[ $DiffMeasure -lt 1 ]]; then
-	    DiffMeasure=0
+		DiffMeasure=0
 	else
 		DiffMeasure=1
 	fi
 fi
 
 if [ $DiffMeasure == 1 ]; then
+	tmp=($FiberTractMeasurementsCLI)
 	if [ -z "$FiberTractMeasurementsCLI" ] ; then
 		echo "ERROR: -m path to FiberTractMeasurements Module must be provided."
 		echo ""
 		Usage
-	elif [ ! -f $FiberTractMeasurementsCLI ]; then
-		echo "ERROR: FiberTractMeasurements Module does not exist."
+	
+	# check existence of the last string in $FiberTractMeasurementsCLI
+	elif [ ! -f ${tmp[-1]} ]; then
+		echo "WARNING: FiberTractMeasurements could not be found, program may fail."
 		echo ""
-		Usage
 	fi
 fi
 
@@ -172,7 +177,7 @@ else
 	numfiles=${#numfiles[@]}
 	if [ $numfiles -gt 1 ] ;then
 		echo ""
-		echo "** Anantomical tracts ($numfiles tracts) are detected in the output folder. Manually remove all files to rerun."
+		echo "** Anatomical tracts ($numfiles tracts) are detected in the output folder. Manually remove all files to rerun."
 		echo ""
 		#exit
 	fi
@@ -190,15 +195,42 @@ echo " - tractography registration atlas:" $RegAtlasFolder
 echo " - fiber clustering atlas:" $FCAtlasFolder
 echo ""
 
+# Apply transformation if provided
+InTractographyDirname="$(dirname "$InputTractography")"
+OutTfmTractography=$OutputCaseFolder/TransformedTracts
+if [ "$TfmFile" ]; then
+  if [ ! -f "$TfmFile" ]; then
+    echo ""
+    echo "ERROR: Transformation file not found."
+    echo ""
+    exit
+  else
+    echo "<wm_harden_transform.py> Apply transformation with file: " "$TfmFile"
+    if [ $VX == 0 ]; then
+      wm_harden_transform.py -t "$TfmFile" \
+        "$InTractographyDirname" "$OutTfmTractography" "$SlicerPath"
+    else
+      xvfb-run wm_harden_transform.py -t "$TfmFile" \
+        "$InTractographyDirname" "$OutTfmTractography" "$SlicerPath"
+    fi
+    echo ""
+  fi
+fi
 
-echo "<wm_apply_ORG_atlas_to_subject> Tractography registraion with mode [" $RegMode "]"
+echo "<wm_apply_ORG_atlas_to_subject> Tractography registration with mode [" $RegMode "]"
 RegistrationFolder=$OutputCaseFolder/TractRegistration
+if [ "$TfmFile" ]; then
+  TractographyData=$(find $OutTfmTractography -type f)
+else
+  TractographyData=$InputTractography
+fi
+
 if [ "$RegMode" == "rig" ]; then
 	RegTractography=$RegistrationFolder/${caseID}/output_tractography/${caseID}_reg.vtk
 	
 	if [ ! -f $RegTractography ]; then
 		wm_register_to_atlas_new.py -mode rigid_affine_fast \
-			$InputTractography $RegAtlasFolder/registration_atlas.vtk $RegistrationFolder/
+			$TractographyData $RegAtlasFolder/registration_atlas.vtk $RegistrationFolder/
 	else
 		echo " - registration has been done."
 	fi
@@ -207,7 +239,7 @@ elif [ "$RegMode" == "nonrig" ]; then
 	
 	if [ ! -f $RegTractography ]; then
 		wm_register_to_atlas_new.py -mode affine \
-			$InputTractography $RegAtlasFolder/registration_atlas.vtk $RegistrationFolder/
+			$TractographyData $RegAtlasFolder/registration_atlas.vtk $RegistrationFolder/
 
 		affineRegTract=$RegistrationFolder/${caseID}/output_tractography/${caseID}_reg.vtk
 		
@@ -235,7 +267,7 @@ echo "<wm_apply_ORG_atlas_to_subject> Fiber clustering for whole-brain 800 fiber
 FiberClusteringInitialFolder=$OutputCaseFolder/FiberClustering/InitialClusters
 if [ ! -f $FiberClusteringInitialFolder/$FCcaseID/cluster_00800.vtp ]; then
 	wm_cluster_from_atlas.py -j $NumThreads \
-		$RegTractography $FCAtlasFolder $FiberClusteringInitialFolder
+		$RegTractography $FCAtlasFolder $FiberClusteringInitialFolder -norender
 else
 	echo " - initial fiber clustering has been done."
 fi
@@ -253,7 +285,7 @@ fi
 echo "<wm_apply_ORG_atlas_to_subject> Outlier fiber removal."
 FiberClusteringOutlierRemFolder=$OutputCaseFolder/FiberClustering/OutlierRemovedClusters
 if [ ! -f $FiberClusteringOutlierRemFolder/${FCcaseID}_outlier_removed/cluster_00800.vtp ]; then
-	wm_cluster_remove_outliers.py \
+	wm_cluster_remove_outliers.py -j $NumThreads \
 		$FiberClusteringInitialFolder/$FCcaseID $FCAtlasFolder $FiberClusteringOutlierRemFolder
 else
 	echo " - outlier fiber removal has been done."
@@ -295,10 +327,10 @@ if [ "$RegMode" == "rig" ]; then
 	if [ ! -f $FiberClustersInTractographySpace/cluster_00800.vtp ]; then
 		if [ $VX == 0 ]; then
 			wm_harden_transform.py -i -t $tfm \
-				$FiberClusteringOutlierRemFolder/${FCcaseID}_outlier_removed $FiberClustersInTractographySpace $SlicerPath
+				$FiberClusteringOutlierRemFolder/${FCcaseID}_outlier_removed $FiberClustersInTractographySpace "$SlicerPath"
 		else
 			xvfb-run wm_harden_transform.py -i -t $tfm \
-				$FiberClusteringOutlierRemFolder/${FCcaseID}_outlier_removed $FiberClustersInTractographySpace $SlicerPath
+				$FiberClusteringOutlierRemFolder/${FCcaseID}_outlier_removed $FiberClustersInTractographySpace "$SlicerPath"
 		fi
 	else
 		echo " - transform has been done."
@@ -310,10 +342,10 @@ elif [ "$RegMode" == "nonrig" ]; then
 	if [ ! -f $FiberClustersInTractographySpace/tmp/cluster_00800.vtp ]; then
 		if [ $VX == 0 ]; then
 			wm_harden_transform.py -i -t $tfm \
-				$FiberClusteringOutlierRemFolder/${FCcaseID}_outlier_removed $FiberClustersInTractographySpace/tmp $SlicerPath
+				$FiberClusteringOutlierRemFolder/${FCcaseID}_outlier_removed $FiberClustersInTractographySpace/tmp "$SlicerPath"
 		else
 			xvfb-run wm_harden_transform.py -i -t $tfm \
-				$FiberClusteringOutlierRemFolder/${FCcaseID}_outlier_removed $FiberClustersInTractographySpace/tmp $SlicerPath
+				$FiberClusteringOutlierRemFolder/${FCcaseID}_outlier_removed $FiberClustersInTractographySpace/tmp "$SlicerPath"
 		fi
 	else
 		echo " - transform has been done."
@@ -324,10 +356,10 @@ elif [ "$RegMode" == "nonrig" ]; then
 	if [ ! -f $FiberClustersInTractographySpace/cluster_00800.vtp ]; then
 		if [ $VX == 0 ]; then
 			wm_harden_transform.py -i -t $tfm \
-				$FiberClustersInTractographySpace/tmp $FiberClustersInTractographySpace $SlicerPath
+				$FiberClustersInTractographySpace/tmp $FiberClustersInTractographySpace "$SlicerPath"
 		else
 			xvfb-run wm_harden_transform.py -i -t $tfm \
-				$FiberClustersInTractographySpace/tmp $FiberClustersInTractographySpace $SlicerPath
+				$FiberClustersInTractographySpace/tmp $FiberClustersInTractographySpace "$SlicerPath"
 		fi
 	else
 		echo " - transform has been done."
@@ -364,12 +396,45 @@ if [ $numfiles -lt 800 ]; then
 	exit
 fi
 
-echo "<wm_apply_ORG_atlas_to_subject> Append clusters into anatomical tracts."
+# Apply the inverse transformation if provided
+ClusterDirnames=($(find "$SeparatedClustersFolder" -mindepth 1 -type d | sort))
+OutInvTfmTractographyDirnameRoot=$OutputCaseFolder/InvTransformedTracts
+if [ "$TfmFile" ]; then
+  if [ ! -f "$TfmFile" ]; then
+    echo ""
+    echo "ERROR: Transformation file not found."
+    echo ""
+    exit
+  else
+    echo "<wm_harden_transform.py> Apply inverse transformation with file: " "$TfmFile"
+    mkdir $OutInvTfmTractographyDirnameRoot
+    for ClusterDirname in "${ClusterDirnames[@]}"; do
+      GroupName=($(basename $ClusterDirname))
+      OutInvTfmTractographyDirname=$OutInvTfmTractographyDirnameRoot/$GroupName
+      mkdir $OutInvTfmTractographyDirname
+      if [ $VX == 0 ]; then
+        wm_harden_transform.py -i -t "$TfmFile" \
+          "$ClusterDirname" "$OutInvTfmTractographyDirname" "$SlicerPath"
+      else
+        xvfb-run wm_harden_transform.py -i -t "$TfmFile" \
+          "$ClusterDirname" "$OutInvTfmTractographyDirname" "$SlicerPath"
+      fi
+    done
+    echo ""
+  fi
+fi
 
+echo "<wm_apply_ORG_atlas_to_subject> Append clusters into anatomical tracts."
 AnatomicalTractsFolder=$OutputCaseFolder/AnatomicalTracts
+if [ "$TfmFile" ]; then
+  TractographyData=$OutInvTfmTractographyDirnameRoot
+else
+  TractographyData=$SeparatedClustersFolder
+fi
+
 if [ ! -f $AnatomicalTractsFolder/T_UF_right.vtp ]; then
 	
-	wm_append_clusters_to_anatomical_tracts.py $SeparatedClustersFolder/ $FCAtlasFolder $AnatomicalTractsFolder
+	wm_append_clusters_to_anatomical_tracts.py $TractographyData/ $FCAtlasFolder $AnatomicalTractsFolder
 
 else
 	echo " - Appending clusters into anatomical tracts has been done."
@@ -387,22 +452,30 @@ fi
 
 if [ $DiffMeasure == 1 ]; then
 
+  os=$(uname)
+
+  if  [[ "$os" == 'Linux' ]]; then
+    measurement_cli_cmd=$SlicerPath" --launch "$FiberTractMeasurementsCLI
+  else
+    measurement_cli_cmd=$FiberTractMeasurementsCLI
+  fi
+
 	echo "<wm_apply_ORG_atlas_to_subject> Report diffusion measurements of fiber clusters."
 	if [ ! -f $SeparatedClustersFolder/diffusion_measurements_commissural.csv ]; then
 		wm_diffusion_measurements.py \
-			$SeparatedClustersFolder/tracts_commissural $SeparatedClustersFolder/diffusion_measurements_commissural.csv $FiberTractMeasurementsCLI
+			$SeparatedClustersFolder/tracts_commissural $SeparatedClustersFolder/diffusion_measurements_commissural.csv "$measurement_cli_cmd"
 	else
 		echo " - diffusion measurements of commissural clusters has been done."
 	fi
 	if [ ! -f $SeparatedClustersFolder/diffusion_measurements_left_hemisphere.csv ]; then
 		wm_diffusion_measurements.py \
-			$SeparatedClustersFolder/tracts_left_hemisphere $SeparatedClustersFolder/diffusion_measurements_left_hemisphere.csv $FiberTractMeasurementsCLI
+			$SeparatedClustersFolder/tracts_left_hemisphere $SeparatedClustersFolder/diffusion_measurements_left_hemisphere.csv "$measurement_cli_cmd"
 	else
 		echo " - diffusion measurements of left hemisphere clusters has been done."
 	fi
 	if [ ! -f $SeparatedClustersFolder/diffusion_measurements_right_hemisphere.csv ]; then
 		wm_diffusion_measurements.py \
-			$SeparatedClustersFolder/tracts_right_hemisphere $SeparatedClustersFolder/diffusion_measurements_right_hemisphere.csv $FiberTractMeasurementsCLI
+			$SeparatedClustersFolder/tracts_right_hemisphere $SeparatedClustersFolder/diffusion_measurements_right_hemisphere.csv "$measurement_cli_cmd"
 	else
 		echo " - diffusion measurements of right hemisphere clusters has been done."
 	fi
@@ -420,10 +493,18 @@ echo ""
 
 if [ $DiffMeasure == 1 ]; then
 
+  os=$(uname)
+
+  if  [[ "$os" == 'Linux' ]]; then
+    measurement_cli_cmd=$SlicerPath" --launch "$FiberTractMeasurementsCLI
+  else
+    measurement_cli_cmd=$FiberTractMeasurementsCLI
+  fi
+
 	echo "<wm_apply_ORG_atlas_to_subject> Report diffusion measurements of the anatomical tracts."
 	if [ ! -f $AnatomicalTractsFolder/diffusion_measurements_anatomical_tracts.csv ]; then
 		wm_diffusion_measurements.py \
-			$AnatomicalTractsFolder $AnatomicalTractsFolder/diffusion_measurements_anatomical_tracts.csv $FiberTractMeasurementsCLI
+			$AnatomicalTractsFolder $AnatomicalTractsFolder/diffusion_measurements_anatomical_tracts.csv "$measurement_cli_cmd"
 	else
 		echo " - diffusion measurements of anatomical tracts has been done."
 	fi
@@ -439,7 +520,7 @@ fi
 echo ""
 
 if [ $CleanFiles == 1 ]; then
-	echo "<wm_apply_ORG_atlas_to_subject> Clean files using mininal removal."
+	echo "<wm_apply_ORG_atlas_to_subject> Clean files using minimal removal."
 	rm -rf $OutputCaseFolder/FiberClustering/InitialClusters
 	rm -rf $OutputCaseFolder/FiberClustering/TransformedClusters
 
@@ -453,3 +534,4 @@ elif [ $CleanFiles == 2 ]; then
 fi
 
 exit
+ 

@@ -1,8 +1,13 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import argparse
-import slicer
-import os
 import glob
+import os
+import shutil
+
+import slicer
+
 
 def harden_transform(polydata, transform, inverse, outdir):
     
@@ -12,14 +17,19 @@ def harden_transform(polydata, transform, inverse, outdir):
     if os.path.exists(output_name):
         return
     
-    check_load, polydata_node = slicer.util.loadModel(str(polydata), 1)
+    check_load, polydata_node = slicer.util.loadFiberBundle(str(polydata), 1)
     if not check_load:
-        print('Could not load polydata file:', polydata)
+        print(f'Could not load polydata file: {polydata}')
         return
 
     check_load, transform_node = slicer.util.loadTransform(str(transform), 1)
     if not check_load:
-        print('Could not load transform file:', transform)
+        print(f'Could not load transform file: {transform}')
+        return
+
+    if polydata_node.GetPolyData().GetNumberOfCells() == 0:
+        print(f'Empty cluster: {polydata}')
+        shutil.copyfile(polydata, output_name)
         return
 
     if inverse == "1":
@@ -34,15 +44,12 @@ def harden_transform(polydata, transform, inverse, outdir):
 
     slicer.util.saveNode(polydata_node, output_name)
 
-def main():
+
+def _build_arg_parser():
+
     parser = argparse.ArgumentParser(
         description="Harden transform with Slicer.",
         epilog="Written by Fan Zhang, fzhang@bwh.harvard.edu")
-    
-    parser.add_argument("-v", "--version",
-        action="version", default=argparse.SUPPRESS,
-        version='1.0',
-        help="Show program's version number and exit")
     parser.add_argument(
         'polydata',
         help='')
@@ -55,14 +62,25 @@ def main():
     parser.add_argument(
         'outdir',
         help='')
-    
-    args = parser.parse_args()
-    
+
+    return parser
+
+
+def _parse_args(parser):
+
+    return parser.parse_args()
+
+
+def main():
+
+    parser = _build_arg_parser()
+    args = _parse_args(parser)
+
     if os.path.isfile(args.polydata):
         harden_transform(args.polydata, args.transform, args.inverse, args.outdir)
     elif os.path.isdir(args.polydata):
-        input_mask = "{0}/*.vtk".format(args.polydata)
-        input_mask2 = "{0}/*.vtp".format(args.polydata)
+        input_mask = os.path.join(args.polydata, "*.vtk")
+        input_mask2 = os.path.join(args.polydata, "*.vtp")
         input_pd_fnames = glob.glob(input_mask) + glob.glob(input_mask2)
         input_polydatas = sorted(input_pd_fnames)
     

@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 """ io.py
 
 This module provides input of vtk polydata tractography files (vtk/vtp).
@@ -18,16 +20,16 @@ This function reads in the laterality data for further analysis.
 
 """
 
+import glob
 import os
 import pickle
-import glob
 import time
-import numpy
+
+import numpy as np
 import vtk
 from joblib import Parallel, delayed
 
-from . import render
-from . import filter
+from . import filter, render
 
 VERBOSE = 0
 
@@ -36,7 +38,7 @@ def read_polydata(filename):
     """Read whole-brain tractography as vtkPolyData format."""
 
     if VERBOSE:
-        print("Reading in data from", filename, "...")
+        print(f"Reading in data from {filename}...")
 
     basename, extension = os.path.splitext(filename)
 
@@ -53,22 +55,22 @@ def read_polydata(filename):
     outpd = reader.GetOutput()
     del reader
     if VERBOSE:
-        print("Done reading in data from", filename)
-        print("Number of lines found:", outpd.GetNumberOfLines())
+        print(f"Done reading in data from {filename}")
+        print(f"Number of lines found: {outpd.GetNumberOfLines()}")
 
     return outpd
 
 def list_vtk_files(input_dir):
     # Find input files
-    input_mask = "{0}/*.vtk".format(input_dir)
-    input_mask2 = "{0}/*.vtp".format(input_dir)
+    input_mask = f"{input_dir}/*.vtk"
+    input_mask2 = f"{input_dir}/*.vtp"
     input_pd_fnames = glob.glob(input_mask) + glob.glob(input_mask2)
     input_pd_fnames = sorted(input_pd_fnames)
     return(input_pd_fnames)
 
 def list_transform_files(input_dir):
     # Find input files
-    input_mask = "{0}/*.tfm".format(input_dir)
+    input_mask = f"{input_dir}/*.tfm"
     input_tf_fnames = glob.glob(input_mask)
     input_tf_fnames = sorted(input_tf_fnames)
     return (input_tf_fnames)
@@ -81,10 +83,10 @@ def read_and_preprocess_polydata_directory(input_dir, fiber_length, number_of_fi
     input_pd_fnames = list_vtk_files(input_dir)
     num_pd = len(input_pd_fnames)
     
-    print("<io.py> =======================================")
-    print("<io.py> Reading vtk and vtp files from directory: ", input_dir)
-    print("<io.py> Total number of files found: ", num_pd)
-    print("<io.py> =======================================")
+    print(f"<{os.path.basename(__file__)}> =======================================")
+    print(f"<{os.path.basename(__file__)}> Reading vtk and vtp files from directory: {input_dir}")
+    print(f"<{os.path.basename(__file__)}> Total number of files found: {num_pd}")
+    print(f"<{os.path.basename(__file__)}> =======================================")
 
     input_pds = list()
     subject_ids = list()
@@ -93,21 +95,21 @@ def read_and_preprocess_polydata_directory(input_dir, fiber_length, number_of_fi
     for fname in input_pd_fnames:
         subject_id = os.path.splitext(os.path.basename(fname))[0]
         subject_ids.append(subject_id)
-        print("<io.py>  ", sidx + 1, "/",  num_pd, subject_id, " Reading ", fname, "...")
+        print(f"<{os.path.basename(__file__)}> {sidx + 1} / {num_pd} {subject_id} Reading {fname}...")
         pd = read_polydata(fname)
-        print("<io.py>  ", sidx + 1, "/",  num_pd, subject_id, " Input number of fibers:", pd.GetNumberOfLines())
+        print(f"<{os.path.basename(__file__)}> {sidx + 1} / {num_pd} {subject_id} Input number of fibers: {pd.GetNumberOfLines()}")
         pd2 = filter.preprocess(pd, min_length_mm=fiber_length, verbose=False, max_length_mm=fiber_length_max)
-        print("<io.py>  ", sidx + 1, "/",  num_pd, subject_id, " Length threshold", fiber_length, "mm. Number of fibers retained:", pd2.GetNumberOfLines())
+        print(f"<{os.path.basename(__file__)}> {sidx + 1} / {num_pd} {subject_id} Length threshold {fiber_length} mm. Number of fibers retained: {pd2.GetNumberOfLines()}")
         pd3 = filter.downsample(pd2, number_of_fibers, verbose=False, random_seed=random_seed)
-        print("<io.py>  ", sidx + 1, "/",  num_pd, subject_id, " Downsample to", number_of_fibers, "fibers. Number of fibers retained:", pd3.GetNumberOfLines())        
+        print(f"<{os.path.basename(__file__)}> {sidx + 1} / num_pd {subject_id} Downsample to {number_of_fibers} fibers. Number of fibers retained: {pd3.GetNumberOfLines()}")
         input_pds.append(pd3)
         sidx += 1
-        print("<io.py> =======================================")
+        print(f"<{os.path.basename(__file__)}> =======================================")
 
-    print("<io.py> =======================================")
-    print("<io.py> Done reading vtk and vtp files from directory: ", input_dir)
-    print("<io.py> Total number of files read: ", len(input_pds))
-    print("<io.py> =======================================")
+    print(f"<{os.path.basename(__file__)}> =======================================")
+    print(f"<{os.path.basename(__file__)}> Done reading vtk and vtp files from directory: {input_dir}")
+    print(f"<{os.path.basename(__file__)}> Total number of files read: {len(input_pds)}")
+    print(f"<{os.path.basename(__file__)}> =======================================")
         
     return input_pds, subject_ids
 
@@ -141,11 +143,11 @@ def write_polydata(polydata, filename):
     del writer
 
     if VERBOSE:
-        print("Done writing ", filename)
+        print(f"Done writing {filename}")
 
 def transform_polydata_from_disk(in_filename, transform_filename, out_filename):
     # Read it in.
-    print("<io.py> Transforming ", in_filename, "->", out_filename, "...")
+    print(f"<{os.path.basename(__file__)}> Transforming {in_filename} -> {out_filename}...")
 
     # Read the transform from disk because we cannot pickle it
     (root, ext) = os.path.splitext(transform_filename)
@@ -165,7 +167,7 @@ def transform_polydata_from_disk(in_filename, transform_filename, out_filename):
         print(coeffs)
         print(transform)
     else:
-        f = open(transform_filename, 'r')
+        f = open(transform_filename)
         transform = vtk.vtkTransform()
         matrix = vtk.vtkMatrix4x4()
         for i in range(0,4):
@@ -178,7 +180,7 @@ def transform_polydata_from_disk(in_filename, transform_filename, out_filename):
     start_time = time.time()
     pd = read_polydata(in_filename)
     elapsed_time = time.time() - start_time
-    print("READ:", elapsed_time)
+    print(f"READ: {elapsed_time}")
     # Transform it.
     start_time = time.time()
     transformer = vtk.vtkTransformPolyDataFilter()
@@ -189,14 +191,14 @@ def transform_polydata_from_disk(in_filename, transform_filename, out_filename):
     transformer.SetTransform(transform)
     transformer.Update()
     elapsed_time = time.time() - start_time
-    print("TXFORM:", elapsed_time)
+    print(f"TXFORM: {elapsed_time}")
 
     # Write it out.
     start_time = time.time()
     pd2 = transformer.GetOutput()
     write_polydata(pd2, out_filename)
     elapsed_time = time.time() - start_time
-    print("WRITE:", elapsed_time)
+    print(f"WRITE: {elapsed_time}")
 
     # Clean up.
     del transformer
@@ -206,11 +208,11 @@ def transform_polydata_from_disk(in_filename, transform_filename, out_filename):
 
 def transform_polydata_from_disk_using_transform_object(in_filename, transform, out_filename):
     # Read it in.
-    print("<io.py> Transforming ", in_filename, "->", out_filename, "...")
+    print(f"<{os.path.basename(__file__)}> Transforming {in_filename} -> {out_filename}...")
     start_time = time.time()
     pd = read_polydata(in_filename)
     elapsed_time = time.time() - start_time
-    print("READ:", elapsed_time)
+    print(f"READ: {elapsed_time}")
     # Transform it.
     start_time = time.time()
     transformer = vtk.vtkTransformPolyDataFilter()
@@ -221,14 +223,14 @@ def transform_polydata_from_disk_using_transform_object(in_filename, transform, 
     transformer.SetTransform(transform)
     transformer.Update()
     elapsed_time = time.time() - start_time
-    print("TXFORM:", elapsed_time)
+    print(f"TXFORM: {elapsed_time}")
 
     # Write it out.
     start_time = time.time()
     pd2 = transformer.GetOutput()
     write_polydata(pd2, out_filename)
     elapsed_time = time.time() - start_time
-    print("WRITE:", elapsed_time)
+    print(f"WRITE: {elapsed_time}")
 
     # Clean up.
     del transformer
@@ -246,24 +248,24 @@ def transform_polydatas_from_disk(input_dir, transforms, output_dir):
     # Find input files
     input_pd_fnames = list_vtk_files(input_dir)
     num_pd = len(input_pd_fnames)
-    print("<io.py> =======================================")
-    print("<io.py> Transforming vtk and vtp files from directory: ", input_dir)
-    print("<io.py> Total number of files found: ", num_pd)
-    print("<io.py> Writing output to directory: ", output_dir)
-    print("<io.py> =======================================")
+    print(f"<{os.path.basename(__file__)}> =======================================")
+    print(f"<{os.path.basename(__file__)}> Transforming vtk and vtp files from directory: {input_dir}")
+    print(f"<{os.path.basename(__file__)}> Total number of files found: {num_pd}")
+    print(f"<{os.path.basename(__file__)}> Writing output to directory: {output_dir}")
+    print(f"<{os.path.basename(__file__)}> =======================================")
 
     if not os.path.exists(output_dir):
-        print("<io.py> ERROR: Output directory does not exist.")
+        print(f"<{os.path.basename(__file__)}> ERROR: Output directory does not exist.")
         return
     if not os.path.exists(input_dir):
-        print("<io.py> ERROR: Output directory does not exist.")
+        print(f"<{os.path.basename(__file__)}> ERROR: Output directory does not exist.")
         return
 
     # Transform the files
     for idx in range(0, len(input_pd_fnames)):
         in_filename = input_pd_fnames[idx]
         subject_id = os.path.splitext(os.path.basename(in_filename))[0]
-        out_filename = os.path.join(output_dir, subject_id + '_reg.vtk')
+        out_filename = os.path.join(output_dir, f'{subject_id}_reg.vtk')
         transform_polydata_from_disk_using_transform_object(in_filename, transforms[idx], out_filename)
 
 # This function was faster but is not always safe. Could crash due to missing file if any write/disk access issue
@@ -278,17 +280,17 @@ def transform_polydatas_from_diskUNSAFE(input_dir, transforms, output_dir, paral
     # Find input files
     input_pd_fnames = list_vtk_files(input_dir)
     num_pd = len(input_pd_fnames)
-    print("<io.py> =======================================")
-    print("<io.py> Transforming vtk and vtp files from directory: ", input_dir)
-    print("<io.py> Total number of files found: ", num_pd)
-    print("<io.py> Writing output to directory: ", output_dir)
-    print("<io.py> =======================================")
+    print(f"<{os.path.basename(__file__)}> =======================================")
+    print(f"<{os.path.basename(__file__)}> Transforming vtk and vtp files from directory: {input_dir}")
+    print(f"<{os.path.basename(__file__)}> Total number of files found: {num_pd}")
+    print(f"<{os.path.basename(__file__)}> Writing output to directory: {output_dir}")
+    print(f"<{os.path.basename(__file__)}> =======================================")
 
     if not os.path.exists(output_dir):
-        print("<io.py> ERROR: Output directory does not exist.")
+        print(f"<{os.path.basename(__file__)}> ERROR: Output directory does not exist.")
         return
     if not os.path.exists(input_dir):
-        print("<io.py> ERROR: Output directory does not exist.")
+        print(f"<{os.path.basename(__file__)}> ERROR: Output directory does not exist.")
         return
 
     # Set up inputs for subprocesses
@@ -300,14 +302,14 @@ def transform_polydatas_from_diskUNSAFE(input_dir, transforms, output_dir, paral
         fname = input_pd_fnames[idx]
         tx = transforms[idx]
         subject_id = os.path.splitext(os.path.basename(fname))[0]
-        out_fname = os.path.join(output_dir, subject_id + '_reg.vtk')
+        out_fname = os.path.join(output_dir, f'{subject_id}_reg.vtk')
         fname_list.append(fname)
         out_fname_list.append(out_fname)
         # save the transform to disk because we cannot pickle it
         if tx.GetClassName() == 'vtkThinPlateSplineTransform':
             writer = vtk.vtkMNITransformWriter()
             writer.AddTransform(tx)
-            fname = '.tmp_vtk_txform_' + str(subject_id) + '.xfm'
+            fname = f'.tmp_vtk_txform_{str(subject_id)}.xfm'
             fname = os.path.join(output_dir, fname)
             writer.SetFileName(fname)
             writer.Write()
@@ -327,7 +329,7 @@ def transform_polydatas_from_diskUNSAFE(input_dir, transforms, output_dir, paral
             ## writer.Write()
             ## del writer
         else:
-            fname = '.tmp_vtk_txform_' + str(subject_id) + '.txt'
+            fname = f'.tmp_vtk_txform_{str(subject_id)}.txt'
             f = open(fname, 'w')
             for i in range(0,4):
                 for j in range(0,4):
@@ -347,7 +349,7 @@ def transform_polydatas_from_diskUNSAFE(input_dir, transforms, output_dir, paral
             os.remove(fname)
 
     #for idx in range(0, len(input_pd_fnames)):
-        #print "<io.py>  ", idx + 1, "/",  num_pd, subject_id, " Transforming ", in_filename, "->", out_filename, "..."
+        #print(f"<{os.path.basename(__file__)}> {idx + 1} / {num_pd} {subject_id} Transforming {in_filename} -> {out_filename}...")
         #transform_polydata_from_disk(in_filename, transform, out_filename)
 
 def transform_polydatas_from_diskOLD(input_dir, transforms, output_dir):
@@ -361,25 +363,25 @@ def transform_polydatas_from_diskOLD(input_dir, transforms, output_dir):
     # Find input files
     input_pd_fnames = list_vtk_files(input_dir)
     num_pd = len(input_pd_fnames)
-    print("<io.py> =======================================")
-    print("<io.py> Transforming vtk and vtp files from directory: ", input_dir)
-    print("<io.py> Total number of files found: ", num_pd)
-    print("<io.py> Writing output to directory: ", output_dir)
-    print("<io.py> =======================================")
+    print(f"<{os.path.basename(__file__)}> =======================================")
+    print(f"<{os.path.basename(__file__)}> Transforming vtk and vtp files from directory: {input_dir}")
+    print(f"<{os.path.basename(__file__)}> Total number of files found: {num_pd}")
+    print(f"<{os.path.basename(__file__)}> Writing output to directory: {output_dir}")
+    print(f"<{os.path.basename(__file__)}> =======================================")
 
     if not os.path.exists(output_dir):
-        print("<io.py> ERROR: Output directory does not exist.")
+        print(f"<{os.path.basename(__file__)}> ERROR: Output directory does not exist.")
         return
     if not os.path.exists(input_dir):
-        print("<io.py> ERROR: Output directory does not exist.")
+        print(f"<{os.path.basename(__file__)}> ERROR: Output directory does not exist.")
         return
 
     for idx in range(0, len(input_pd_fnames)):
         # Read it in.
         fname = input_pd_fnames[idx]
         subject_id = os.path.splitext(os.path.basename(fname))[0]
-        out_fname = os.path.join(output_dir, subject_id + '_reg.vtk')
-        print("<io.py>  ", idx + 1, "/",  num_pd, subject_id, " Transforming ", fname, "->", out_fname, "...")
+        out_fname = os.path.join(output_dir, f'{subject_id}_reg.vtk')
+        print(f"<{os.path.basename(__file__)}> {idx + 1} / {num_pd} {subject_id} Transforming {fname} -> {out_fname}...")
         pd = read_polydata(fname)
         # Transform it.
         transformer = vtk.vtkTransformPolyDataFilter()
@@ -421,17 +423,17 @@ def write_transforms_to_itk_format(transform_list, outdir, subject_ids=None):
             writer = vtk.vtkMNITransformWriter()
             writer.AddTransform(tx)
             if subject_ids is not None:
-                fname = 'vtk_txform_' + str(subject_ids[idx]) + '.xfm'
+                fname = f'vtk_txform_{str(subject_ids[idx])}.xfm'
             else:
-                fname = 'vtk_txform_{0:05d}.xfm'.format(idx)
+                fname = f'vtk_txform_{idx:05d}.xfm'
             writer.SetFileName(os.path.join(outdir, fname))
             writer.Write()
 
         # file name for itk transform written below
         if subject_ids is not None:
-            fname = 'itk_txform_' + str(subject_ids[idx]) + '.tfm'
+            fname = f'itk_txform_{str(subject_ids[idx])}.tfm'
         else:
-            fname = 'itk_txform_{0:05d}.tfm'.format(idx)
+            fname = f'itk_txform_{idx:05d}.tfm'
         fname = os.path.join(outdir, fname)
         tx_fnames.append(fname)
 
@@ -501,10 +503,10 @@ def write_transforms_to_itk_format(transform_list, outdir, subject_ids=None):
             grid_size = [105, 105, 105]
             grid_spacing = 2
 
-            extent_0 = [-(grid_size[0] - 1)/2, -(grid_size[1] - 1)/2, -(grid_size[2] - 1)/2]
-            extent_1 = [ (grid_size[0] - 1)/2,  (grid_size[1] - 1)/2,  (grid_size[2] - 1)/2]
+            extent_0 = [-int((grid_size[0] - 1)/2), -int((grid_size[1] - 1)/2), -int((grid_size[2] - 1)/2)]
+            extent_1 = [ int((grid_size[0] - 1)/2),  int((grid_size[1] - 1)/2),  int((grid_size[2] - 1)/2)]
 
-            origin = -grid_spacing * (numpy.array(extent_1) - numpy.array(extent_0))/2.0
+            origin = -grid_spacing * (np.array(extent_1) - np.array(extent_0))/2.0
 
             grid_points_LPS = list()
             grid_points_RAS = list()
@@ -518,7 +520,7 @@ def write_transforms_to_itk_format(transform_list, outdir, subject_ids=None):
 
             displacements_LPS = list()
 
-            print("LPS grid for storing transform:", grid_points_LPS[0], grid_points_LPS[-1], grid_spacing)
+            print(f"LPS grid for storing transform: {grid_points_LPS[0]} {grid_points_LPS[-1]} {grid_spacing}")
 
             lps_points = vtk.vtkPoints()
             lps_points2 = vtk.vtkPoints()
@@ -566,19 +568,19 @@ def write_transforms_to_itk_format(transform_list, outdir, subject_ids=None):
             # all grid nodes."
             for block in [0, 1, 2]:
                 for diff in displacements_LPS:
-                    f.write('{0} '.format(diff[block]))
+                    f.write(f'{diff[block]} ')
 
             #FixedParameters: size size size origin origin origin origin spacing spacing spacing (then direction cosines: 1 0 0 0 1 0 0 0 1)
             f.write('\nFixedParameters:')
             #f.write(' {0} {0} {0}'.format(2*sz+1))
-            f.write(' {0}'.format(grid_size[0]))
-            f.write(' {0}'.format(grid_size[1]))
-            f.write(' {0}'.format(grid_size[2]))
+            f.write(f' {grid_size[0]}')
+            f.write(f' {grid_size[1]}')
+            f.write(f' {grid_size[2]}')
 
-            f.write(' {0}'.format(origin[0]))
-            f.write(' {0}'.format(origin[1]))
-            f.write(' {0}'.format(origin[2]))
-            f.write(' {0} {0} {0}'.format(grid_spacing))
+            f.write(f' {origin[0]}')
+            f.write(f' {origin[1]}')
+            f.write(f' {origin[2]}')
+            f.write(f' {grid_spacing} {grid_spacing} {grid_spacing}')
             f.write(' 1 0 0 0 1 0 0 0 1\n')
 
             f.close()
@@ -610,9 +612,9 @@ def write_transforms_to_itk_format(transform_list, outdir, subject_ids=None):
             f.write('Transform: AffineTransform_double_3_3\n')
             f.write('Parameters: ')
             for el in three_by_three:
-                f.write('{0} '.format(el))
+                f.write(f'{el} ')
             for el in translation:
-                f.write('{0} '.format(el))
+                f.write(f'{el} ')
             f.write('\nFixedParameters: 0 0 0\n')
             f.close()
 
@@ -693,7 +695,7 @@ class LateralityResults:
         fid.close()
         print("e")
         # generate histogram (needs matplotlib)
-        li_stats = self.laterality_index[numpy.nonzero(self.laterality_index)]
+        li_stats = self.laterality_index[np.nonzero(self.laterality_index)]
         ## if USE_MATPLOTLIB and 0:
         ##     try:
         ##         print "f"
@@ -705,7 +707,7 @@ class LateralityResults:
         ##         matplotlib.pyplot.close()
         ##         print "g"
         ##     except Exception:
-        ##         print "<io.py> matplotlib was unable to write histogram."
+        ##         print(f"<{os.path.basename(__file__)}> matplotlib was unable to write histogram.")
         ##         raise
         ## print "1"
         # generate fiber visualization
@@ -714,8 +716,8 @@ class LateralityResults:
             #ren = render.render(self.polydata)
             #ren.save_views(dirname)
         #except Exception:
-        #    print "<io.py> vtk or rendering issue. Failed to save views."
-        #    print "<io.py> polydata was saved to disk so you can re-render."
+        #    print(f"<{os.path.basename(__file__)}> vtk or rendering issue. Failed to save views.")
+        #    print(f"<{os.path.basename(__file__)}> polydata was saved to disk so you can re-render.")
         #    raise
 
         #print "IMPLEMENT SAVING OF PARAMETERS TOO"
@@ -724,7 +726,7 @@ class LateralityResults:
         """Read output (class laterality.LateralityResults) for one subject."""
 
         if not os.path.isdir(dirname):
-            print("<io.py> error: directory does not exist.", dirname)
+            print(f"<{os.path.basename(__file__)}> error: directory does not exist {dirname}")
 
         if readpd:
             # input polydata
@@ -736,28 +738,28 @@ class LateralityResults:
 
         # input LI and other data values using pickle
         fname = os.path.join(dirname, 'pickle_laterality_index.txt')
-        fid = open(fname, 'r')
+        fid = open(fname)
         self.laterality_index = pickle.load(fid)
         fid.close()
 
         fname = os.path.join(dirname, 'pickle_left_hem_similarity.txt')
-        fid = open(fname, 'r')
+        fid = open(fname)
         self.left_hem_similarity = pickle.load(fid)
         fid.close()
         fname = os.path.join(dirname, 'pickle_right_hem_similarity.txt')
-        fid = open(fname, 'r')
+        fid = open(fname)
         self.right_hem_similarity = pickle.load(fid)
         fid.close()
         fname = os.path.join(dirname, 'pickle_hemisphere.txt')
-        fid = open(fname, 'r')
+        fid = open(fname)
         self.hemisphere = pickle.load(fid)
         fid.close()
 
         if readdist:
-            fid = open(os.path.join(dirname, 'pickle_right_hem_distance.txt'), 'r')
+            fid = open(os.path.join(dirname, 'pickle_right_hem_distance.txt'))
             self.right_hem_distance = pickle.load(fid)
             fid.close()
-            fid = open(os.path.join(dirname, 'pickle_left_hem_distance.txt'), 'r')
+            fid = open(os.path.join(dirname, 'pickle_left_hem_distance.txt'))
             self.left_hem_distance = pickle.load(fid)
             fid.close()
 

@@ -1,18 +1,17 @@
 #!/usr/bin/env python
-import numpy
+# -*- coding: utf-8 -*-
+
 import argparse
-import os
 import multiprocessing
-import vtk
+import os
 import time
 
-try:
-    import whitematteranalysis as wma
-except:
-    print("<wm_cluster_atlas.py> Error importing white matter analysis package\n")
-    raise
-
 import matplotlib.pyplot as plt
+import numpy as np
+import vtk
+
+import whitematteranalysis as wma
+
 
 def main():
     #-----------------
@@ -21,10 +20,6 @@ def main():
     parser = argparse.ArgumentParser(
         description="Runs clustering of tractography for multiple subjects to create an atlas. This tract atlas can then be applied to the complete set of fibers from individual subjects of interest. To make it possible to cluster the high number of fibers, this code uses random sampling and the Nystrom method as described in the reference below.",
         epilog="Written by Lauren O\'Donnell, odonnell@bwh.harvard.edu.  Please reference \"O'Donnell, Lauren J., and C-F. Westin. Automatic tractography segmentation using a high-dimensional white matter atlas. Medical Imaging, IEEE Transactions on 26.11 (2007): 1562-1575.\"")
-    parser.add_argument("-v", "--version",
-        action="version", default=argparse.SUPPRESS,
-        version='1.0',
-        help="Show program's version number and exit")
     parser.add_argument(
         'inputDirectory',
         help='A directory of (already registered) whole-brain tractography as vtkPolyData (.vtk or .vtp).')
@@ -103,28 +98,28 @@ def main():
     args = parser.parse_args()
     
     if not os.path.isdir(args.inputDirectory):
-        print("<wm_cluster_atlas.py> Error: Input directory", args.inputDirectory, "does not exist or is not a directory.")
+        print(f"<{os.path.basename(__file__)}> Error: Input directory {args.inputDirectory} does not exist or is not a directory.")
         exit()
     
     outdir = args.outputDirectory
     if not os.path.exists(outdir):
-        print("<wm_cluster_atlas.py> Output directory", outdir, "does not exist, creating it.")
+        print(f"<{os.path.basename(__file__)}> Output directory {outdir} does not exist, creating it.")
         os.makedirs(outdir)
         
     print("\n==========================")
-    print("<wm_cluster_atlas.py> Clustering parameters")
-    print("input directory:\n", args.inputDirectory)
-    print("output directory:\n", args.outputDirectory)
+    print(f"<{os.path.basename(__file__)}> Clustering parameters")
+    print(f"input directory:\n {args.inputDirectory}")
+    print(f"output directory:\n {args.outputDirectory}")
     
     if args.numberOfFibers is not None:
-        print("fibers to analyze per subject: ", args.numberOfFibers)
+        print(f"fibers to analyze per subject: {args.numberOfFibers}")
         number_of_fibers_per_subject = args.numberOfFibers
     else:
         number_of_fibers_per_subject = 2000
-        print("fibers to analyze per subject: Setting to default", number_of_fibers_per_subject)
+        print(f"fibers to analyze per subject: Setting to default {number_of_fibers_per_subject}")
     
     fiber_length = args.fiberLength
-    print("minimum length of fibers to analyze (in mm): ", fiber_length)
+    print(f"minimum length of fibers to analyze (in mm): {fiber_length}")
     
     if args.numberOfJobs is not None:
         number_of_jobs = args.numberOfJobs
@@ -133,7 +128,7 @@ def main():
         # multiprocessing is not used efficiently in our code and should
         # be avoided for large clustering problems, for now.
         number_of_jobs = 1
-    print('Using N jobs:', number_of_jobs)
+    print(f'Using N jobs: {number_of_jobs}')
     
     if args.flag_verbose:
         print("Verbose ON.")
@@ -147,46 +142,46 @@ def main():
         print("Rendering. After clustering, will create colorful jpg images of the group.")
     render = not args.flag_norender
     
-    print("RENDER:", render)
+    print(f"RENDER: {render}")
     if args.numberOfClusters is not None:
         number_of_clusters = args.numberOfClusters
     else:
         number_of_clusters = 250
-    print("Number of clusters to find: ", number_of_clusters)
+    print(f"Number of clusters to find: {number_of_clusters}")
     
     cluster_outlier_std_threshold = args.clusterOutlierStandardDeviation
-    print("Standard deviation for fiber outlier removal after clustering (accurate local probability): ", cluster_outlier_std_threshold)
+    print(f"Standard deviation for fiber outlier removal after clustering (accurate local probability): {cluster_outlier_std_threshold}")
     
     outlier_std_threshold = args.outlierStandardDeviation
-    print("Standard deviation for fiber outlier removal before clustering (approximated total probability): ", outlier_std_threshold)
+    print(f"Standard deviation for fiber outlier removal before clustering (approximated total probability): {outlier_std_threshold}")
     
     subject_percent_threshold = args.subjectPercentToKeepCluster
-    print("Percent of subjects needed in a cluster to retain that cluster on the next iteration:", subject_percent_threshold)
+    print(f"Percent of subjects needed in a cluster to retain that cluster on the next iteration:{subject_percent_threshold}")
     
     # 20mm works well for cluster-specific outlier removal in conjunction with the mean distance.
     cluster_local_sigma = args.outlierSigma
-    print("Local sigma for cluster outlier removal:", cluster_local_sigma)
+    print(f"Local sigma for cluster outlier removal:{cluster_local_sigma}")
     
     cluster_iterations = args.iterations
-    print("Iterations of clustering and outlier removal:", cluster_iterations)
+    print(f"Iterations of clustering and outlier removal:{cluster_iterations}")
     
     if args.sizeOfNystromSample is not None:
         number_of_sampled_fibers = args.sizeOfNystromSample
     else:
         number_of_sampled_fibers = 2000
-    print("Size of Nystrom sample: ", number_of_sampled_fibers)
+    print(f"Size of Nystrom sample: {number_of_sampled_fibers}")
     
     if args.sigma is not None:
         sigma = args.sigma
     else:
         sigma = 60
-    print("Sigma in mm: ", sigma)
+    print(f"Sigma in mm: {sigma}")
     
     if args.showNFibersInSlicer is not None:
         number_of_fibers_to_display = args.showNFibersInSlicer
     else:
         number_of_fibers_to_display = 10000.0
-    print("Maximum total number of fibers to display in MRML/Slicer: ", number_of_fibers_to_display)
+    print(f"Maximum total number of fibers to display in MRML/Slicer: {number_of_fibers_to_display}")
     
     #if args.flag_remove_outliers:
     #    if args.subjectPercent is not None:
@@ -209,7 +204,7 @@ def main():
     else:
         # for across-subjects matching
         threshold = 2.0
-    print("Threshold (in mm) for fiber distances: ", threshold)
+    print(f"Threshold (in mm) for fiber distances: {threshold}")
     
     
     if args.distanceMethod is not None:
@@ -217,7 +212,7 @@ def main():
     else:
         # for across-subjects matching
         distance_method = 'Mean'
-    print("Fiber distance or comparison method: ", distance_method)
+    print(f"Fiber distance or comparison method: {distance_method}")
     
     if args.flag_nystrom_off:
         use_nystrom = False
@@ -233,7 +228,7 @@ def main():
         testing = False
     
     if args.randomSeed is not None:
-        print("Setting random seed to: ", args.randomSeed)
+        print(f"Setting random seed to: {args.randomSeed}")
     random_seed = args.randomSeed
     
     if args.flag_pos_def_off:
@@ -263,23 +258,19 @@ def main():
     # contain almost as much information and reduce noise for single subject clustering
     #number_of_eigenvectors = 20
     
-    # =======================================================================
-    # Above this line is argument parsing. Below this line is the pipeline.
-    # =======================================================================
-    
     input_polydatas = wma.io.list_vtk_files(args.inputDirectory)
     number_of_subjects = len(input_polydatas)
     
-    print("<wm_cluster_atlas.py> Found ", number_of_subjects, "subjects in input directory:", args.inputDirectory)
+    print(f"<{os.path.basename(__file__)}> Found {number_of_subjects} subjects in input directory: {args.inputDirectory}")
     if number_of_subjects < 1:
         print("\n<wm_cluster_atlas.py> Error: No .vtk or .vtp files were found in the input directory.\n")
         exit()
     
     total_number_of_fibers = number_of_fibers_per_subject * number_of_subjects
     
-    print("Input number of subjects (number of vtk/vtp files): ", number_of_subjects)
+    print(f"Input number of subjects (number of vtk/vtp files): {number_of_subjects}")
     print("==========================\n")
-    print("<wm_cluster_atlas.py> Starting file I/O and computation.")
+    print(f"<{os.path.basename(__file__)}> Starting file I/O and computation.")
     
     # output summary file to save information about what was run
     readme_fname = os.path.join(outdir, 'README.txt')
@@ -297,14 +288,14 @@ def main():
     outstr += str(number_of_subjects)
     outstr += '\n'
     outstr += '\n'
-    outstr +=  "Current date: "  + time.strftime("%x")
+    outstr +=  f"Current date: {time.strftime('%x')}"
     outstr += '\n'
-    outstr +=  "Current time: " + time.strftime("%X")
+    outstr +=  f"Current time: {time.strftime('%X')}"
     outstr += '\n'
     outstr += '\n'
-    outstr += "Path to Script: " + os.path.realpath(__file__)
+    outstr += f"Path to Script: {os.path.realpath(__file__)}"
     outstr += '\n'
-    outstr += "Working Directory: " + os.getcwd()
+    outstr += f"Working Directory: {os.getcwd()}"
     outstr += '\n'
     outstr += '\n'
     outstr += "Description of Outputs\n"
@@ -337,17 +328,17 @@ def main():
     input_pds = list()
     for fname in input_polydatas:
         # read data
-        print("<wm_cluster_atlas.py> Reading input file:", fname)
+        print(f"<{os.path.basename(__file__)}> Reading input file: {fname}")
         pd = wma.io.read_polydata(fname)
         # preprocessing step: minimum length
-        #print "<wm_cluster_atlas.py> Preprocessing by length:", fiber_length, "mm."
+        #print(f"<{os.path.basename(__file__)}> Preprocessing by length: {fiber_length} mm.")
         pd2 = wma.filter.preprocess(pd, fiber_length,verbose=verbose)
         # preprocessing step: fibers to analyze
         if number_of_fibers_per_subject is not None:
-            print("<wm_cluster_atlas.py> Downsampling to", number_of_fibers_per_subject, "fibers from",  pd2.GetNumberOfLines(),"fibers over length", fiber_length, ".")
+            print(f"<{os.path.basename(__file__)}> Downsampling to {number_of_fibers_per_subject} fibers from {pd2.GetNumberOfLines()} fibers over length {fiber_length}.")
             pd3 = wma.filter.downsample(pd2, number_of_fibers_per_subject, verbose=verbose, random_seed=random_seed)
             if pd3.GetNumberOfLines() != number_of_fibers_per_subject:
-                print("<wm_cluster_atlas.py> Fibers found:", pd3.GetNumberOfLines(), "Fibers requested:", number_of_fibers_per_subject)
+                print(f"<{os.path.basename(__file__)}> Fibers found: {pd3.GetNumberOfLines()} Fibers requested: {number_of_fibers_per_subject}")
                 print("\n<wm_cluster_atlas.py> ERROR: too few fibers over length threshold in subject:", fname)
                 exit()
         else:
@@ -374,7 +365,7 @@ def main():
     for sidx in range(number_of_subjects):
         for fidx in range(number_of_fibers_per_subject):
             subject_fiber_list.append(sidx)
-    subject_fiber_list = numpy.array(subject_fiber_list)
+    subject_fiber_list = np.array(subject_fiber_list)
     
     #-----------------
     # Run clustering
@@ -382,17 +373,17 @@ def main():
     
     # Check there are enough fibers for requested analysis
     if number_of_sampled_fibers >= input_data.GetNumberOfLines():
-        print("<wm_cluster_atlas.py> Error: Nystrom sample size is larger than number of fibers available.")
-        print("number_of_subjects:", number_of_subjects)
-        print("number_of_fibers_per_subject:", number_of_fibers_per_subject)
-        print("total_number_of_fibers:", total_number_of_fibers)
-        print("requested subsample size from above total:", number_of_sampled_fibers)
+        print(f"<{os.path.basename(__file__)}> Error: Nystrom sample size is larger than number of fibers available.")
+        print(f"number_of_subjects: {number_of_subjects}")
+        print(f"number_of_fibers_per_subject: {number_of_fibers_per_subject}")
+        print(f"total_number_of_fibers: {total_number_of_fibers}")
+        print(f"requested subsample size from above total: {number_of_sampled_fibers}")
         exit()
     
     # Set up random seed
     if random_seed is not None:
-        print("<wm_cluster_atlas.py> Setting random seed to", random_seed)
-        numpy.random.seed(seed=random_seed)
+        print(f"<{os.path.basename(__file__)}> Setting random seed to: {random_seed}")
+        np.random.seed(seed=random_seed)
     
     # Overall progress/outlier removal info file
     fname_progress = os.path.join(outdir, 'cluster_log.txt')
@@ -404,16 +395,16 @@ def main():
     # Run clustering several times, removing outliers each time.
     for iteration in range(cluster_iterations):
         # make a directory for the current iteration
-        dirname = "iteration_%05d" % (iteration)
+        dirname = f"iteration_{iteration:05d}"
         outdir_current = os.path.join(outdir, dirname)
     
         # Calculate indices of random sample for Nystrom method
-        nystrom_mask = numpy.random.permutation(input_data.GetNumberOfLines()) < number_of_sampled_fibers
+        nystrom_mask = np.random.permutation(input_data.GetNumberOfLines()) < number_of_sampled_fibers
     
-        print("BEFORE cluster: Polydata size:", input_data.GetNumberOfLines(), "Subject list for fibers:", subject_fiber_list.shape)
+        print(f"BEFORE cluster: Polydata size: {input_data.GetNumberOfLines()}, Subject list for fibers: {subject_fiber_list.shape}")
     
         # Run clustering on the polydata
-        print('<wm_cluster_atlas.py> Starting clustering.')
+        print(f'<{os.path.basename(__file__)}> Starting clustering.')
         output_polydata_s, cluster_numbers_s, color, embed, distortion, atlas, reject_idx = \
             wma.cluster.spectral(input_data, number_of_clusters=number_of_clusters, \
                                      number_of_jobs=number_of_jobs, use_nystrom=use_nystrom, \
@@ -426,8 +417,8 @@ def main():
                                      bilateral=bilateral)
     
         # If any fibers were rejected, delete the corresponding entry in this list
-        subject_fiber_list = numpy.delete(subject_fiber_list, reject_idx)
-        print("After cluster: Polydata size:", output_polydata_s.GetNumberOfLines(), "Subject list for fibers:", subject_fiber_list.shape)
+        subject_fiber_list = np.delete(subject_fiber_list, reject_idx)
+        print(f"After cluster: Polydata size: {output_polydata_s.GetNumberOfLines()} Subject list for fibers: {subject_fiber_list.shape}")
     
         # Save the output in our atlas format for automatic labeling of full brain datasets.
         # This is the data used to label a new subject.
@@ -438,9 +429,9 @@ def main():
         
         outdir1 = os.path.join(outdir_current, 'initial_clusters')
         if not os.path.exists(outdir1):
-            print("<wm_cluster_atlas.py> Output directory", outdir1, "does not exist, creating it.")
+            print(f"<{os.path.basename(__file__)}> Output directory {outdir1} does not exist, creating it.")
             os.makedirs(outdir1)    
-        print('<wm_cluster_atlas.py> Saving output files in directory:', outdir1)
+        print(f'<{os.path.basename(__file__)}> Saving output files in directory: {outdir1}')
         wma.cluster.output_and_quality_control_cluster_atlas(atlas, output_polydata_s, subject_fiber_list, input_polydatas, number_of_subjects, outdir1, cluster_numbers_s, color, embed, number_of_fibers_to_display, testing=testing, verbose=False, render_images=render)
     
         # Remove outliers from this iteration and save atlas again                                                 
@@ -451,8 +442,8 @@ def main():
     
         reject_idx = list() 
         cluster_indices = list(range(atlas.centroids.shape[0]))
-        fiber_mean_sim = numpy.zeros(cluster_numbers_s.shape)
-        fiber_hemisphere = numpy.zeros(cluster_numbers_s.shape)
+        fiber_mean_sim = np.zeros(cluster_numbers_s.shape)
+        fiber_hemisphere = np.zeros(cluster_numbers_s.shape)
         
         plt.figure(0)
         plt.title('Histogram of per-cluster fiber distances')
@@ -481,8 +472,8 @@ def main():
     
         for c in cluster_indices:
             mask = cluster_numbers_s == c
-            fiber_indices = numpy.nonzero(mask)[0]
-            number_fibers_in_cluster = numpy.sum(mask)
+            fiber_indices = np.nonzero(mask)[0]
+            number_fibers_in_cluster = np.sum(mask)
             cluster_size_before.append(number_fibers_in_cluster)
     
             # get the subject ID for each fiber in the cluster
@@ -516,26 +507,26 @@ def main():
             #p(f1) = sum over all f2 of p(f1|f2) * p(f2)
             # by using sample we estimate expected value of the above
             # get total similarity for each fiber (-1 to neglect self comparison)
-            total_similarity_OLD = (numpy.sum(cluster_similarity, axis=1) - 1.0) / number_fibers_in_cluster
+            total_similarity_OLD = (np.sum(cluster_similarity, axis=1) - 1.0) / number_fibers_in_cluster
             # get leave-one-out total similarity (probability) where only fibers from other subjects are considered
             total_similarity = list()
             for (fidx, sidx) in zip(list(range(len(subject_ID_per_fiber))), subject_ID_per_fiber):
                 mask = subject_ID_per_fiber != sidx
                 #print sidx, "!=", set(subject_ID_per_fiber[mask])
-                number_fibers_in_LOO_cluster = numpy.sum(mask)
-                total_similarity.append(numpy.sum(cluster_similarity[fidx,mask]) / number_fibers_in_LOO_cluster)
+                number_fibers_in_LOO_cluster = np.sum(mask)
+                total_similarity.append(np.sum(cluster_similarity[fidx,mask]) / number_fibers_in_LOO_cluster)
                 mask2 = subject_ID_per_fiber == sidx
                 if verbose:
-                    tmp = numpy.sum(cluster_similarity[fidx, mask2]) / numpy.sum(mask2)
-                    print("LOO:", total_similarity[-1], "all:", total_similarity_OLD[fidx], "subj:", tmp, "f:", number_fibers_in_cluster, "LOO f:", number_fibers_in_LOO_cluster, "subj f:", numpy.sum(mask2))
-            total_similarity = numpy.array(total_similarity)
-            
+                    tmp = np.sum(cluster_similarity[fidx, mask2]) / np.sum(mask2)
+                    print(f"LOO: {total_similarity[-1]} all: {total_similarity_OLD[fidx]} subj: {tmp} f: {number_fibers_in_cluster} LOO f: {number_fibers_in_LOO_cluster}, subj f: {np.sum(mask2)}")
+            total_similarity = np.array(total_similarity)
+
             if verbose:
-                print("cluster", c, "tsim:", numpy.min(total_similarity), numpy.mean(total_similarity), numpy.max(total_similarity), "num fibers:", numpy.sum(mask), "num subjects:", subjects_per_cluster)
-    
+                print(f"cluster {c} tsim: {np.min(total_similarity)} {np.mean(total_similarity)} {np.max(total_similarity)} num fibers: {np.sum(mask)} num subjects: {subjects_per_cluster}")
+
             # remove outliers with low similarity to their cluster
-            mean_sim = numpy.mean(total_similarity)
-            cluster_std = numpy.std(total_similarity)
+            mean_sim = np.mean(total_similarity)
+            cluster_std = np.std(total_similarity)
             cluster_std_similarity.append(cluster_std)
             cluster_mean_similarity.append(mean_sim)
     
@@ -550,34 +541,34 @@ def main():
                     # reject the whole cluster if there are few subjects (tractography error)
                     cluster_numbers_s[fidx] = -c -1
                     reject_idx.append(fidx)
-    
-            dist_mm = numpy.sqrt(cluster_distances)
-    
-            cluster_mean_distances.append(numpy.mean(dist_mm))
-            cluster_mean_probabilities.append(numpy.mean(total_similarity))
+
+            dist_mm = np.sqrt(cluster_distances)
+
+            cluster_mean_distances.append(np.mean(dist_mm))
+            cluster_mean_probabilities.append(np.mean(total_similarity))
             mask = cluster_numbers_s == -c -1
-            cluster_removed_local.append(numpy.sum(mask))
-    
-            print("CLUSTER:", c, "/", numpy.max(cluster_indices), "| fibers:", number_fibers_in_cluster, "| subjects:", subjects_per_cluster, "| dist:", numpy.min(dist_mm), numpy.mean(dist_mm), numpy.max(dist_mm), "| sim :", numpy.min(cluster_similarity), numpy.mean(cluster_similarity), numpy.max(cluster_similarity),  "| tsim:", numpy.min(total_similarity), numpy.mean(total_similarity), numpy.max(total_similarity), "| local reject total:", cluster_removed_local[-1])
-    
+            cluster_removed_local.append(np.sum(mask))
+
+            print(f"CLUSTER: {c} / {np.max(cluster_indices)} | fibers: {number_fibers_in_cluster} | subjects: {subjects_per_cluster} | dist: {np.min(dist_mm)} {np.mean(dist_mm)} {np.max(dist_mm)} | sim : {np.min(cluster_similarity)} {np.mean(cluster_similarity)} {np.max(cluster_similarity)} | tsim: {np.min(total_similarity)} {np.mean(total_similarity)} {np.max(total_similarity)} | local reject total: {cluster_removed_local[-1]}")
+
             plt.figure(0)
             # plot the mean per-fiber distance because plotting all distances allocated 20GB
-            plot_data = numpy.mean(dist_mm, axis=1)
+            plot_data = np.mean(dist_mm, axis=1)
             n, bins, patches = plt.hist(plot_data, histtype='barstacked', range=[0,60], bins=30, alpha=0.75)
             plt.setp(patches,'lw', 0.01)
             plt.figure(1)
             # this can become nan if there are no other subjects in cluster; those are rejected anyway
-            plot_data = total_similarity[~numpy.isnan(total_similarity)]
+            plot_data = total_similarity[~np.isnan(total_similarity)]
             if len(plot_data) > 0:
                 n, bins, patches = plt.hist(plot_data, histtype='barstacked', range=[0.0,1.0], bins=30, alpha=0.75)
                 plt.setp(patches,'lw', 0.1)
-        print("Rejecting cluster outlier fibers:", len(reject_idx))
+        print(f"Rejecting cluster outlier fibers: {len(reject_idx)}")
     
         # in a second pass, also remove outliers whose average fiber
         # similarity to their cluster is too low compared to the whole brain.
         # This can prune fibers from variable clusters that might be missed above
-        brain_mean_sim = numpy.mean(fiber_mean_sim)
-        brain_std_sim = numpy.std(fiber_mean_sim)
+        brain_mean_sim = np.mean(fiber_mean_sim)
+        brain_std_sim = np.std(fiber_mean_sim)
     
         for fidx in range(len(cluster_numbers_s)):
             if fiber_mean_sim[fidx] < brain_mean_sim - cluster_outlier_std_threshold*brain_std_sim:
@@ -586,13 +577,13 @@ def main():
                     cluster_numbers_s[fidx] = -cluster_numbers_s[fidx] - 1
                     reject_idx.append(fidx)
     
-        reject_idx = numpy.array(reject_idx)
+        reject_idx = np.array(reject_idx)
     
-        print("Rejecting whole-brain cluster outlier fibers:", len(reject_idx))
+        print(f"Rejecting whole-brain cluster outlier fibers: {len(reject_idx)}")
     
         for cidx in cluster_indices:
             mask = cluster_numbers_s == -cidx -1
-            cluster_removed_total.append(numpy.sum(mask))
+            cluster_removed_total.append(np.sum(mask))
             cluster_subjects_outlier.append(len(set(subject_fiber_list[mask])))
             # record how many subjects after outlier removal
             mask = cluster_numbers_s == cidx
@@ -600,9 +591,9 @@ def main():
     
         outdir2 = os.path.join(outdir_current, 'remove_outliers')
         if not os.path.exists(outdir2):
-            print("<wm_cluster_atlas.py> Output directory", outdir2, "does not exist, creating it.")
+            print(f"<{os.path.basename(__file__)}> Output directory {outdir2} does not exist, creating it.")
             os.makedirs(outdir2)
-        print('<wm_cluster_atlas.py> Saving output files in directory:', outdir2)
+        print(f'<{os.path.basename(__file__)}> Saving output files in directory: {outdir2}')
     
         plt.figure(0)
         plt.savefig( os.path.join(outdir2, 'fiber_distances_per_cluster_histogram.pdf'))
@@ -620,7 +611,7 @@ def main():
         clusters_qc_fname = os.path.join(outdir2, 'outlier_removal_information.txt')
         clusters_qc_file = open(clusters_qc_fname, 'w')
         print('cluster_idx','\t', 'mean_distance','\t', 'mean_probability','\t', 'fibers_before','\t', 'fibers_after', '\t', 'subjects_before','\t','subjects_after', '\t','subjects_with_outliers', '\t','local_outliers', '\t','global_outliers', '\t','total_outliers','\t','left_hem_fibers','\t','right_hem_fibers','\t','commissural_fibers', file=clusters_qc_file)
-        cluster_size_after = numpy.array(cluster_size_before) - numpy.array(cluster_removed_total)
+        cluster_size_after = np.array(cluster_size_before) - np.array(cluster_removed_total)
         for cidx in cluster_indices:
             print(cidx + 1,'\t', \
                 cluster_mean_distances[cidx], '\t', \
@@ -638,7 +629,7 @@ def main():
                 cluster_commissure[cidx], file=clusters_qc_file)
         clusters_qc_file.close()
     
-        print("Before save Polydata size:", output_polydata_s.GetNumberOfLines(), "Subject list for fibers:", subject_fiber_list.shape)
+        print(f"Before save Polydata size: {output_polydata_s.GetNumberOfLines()} Subject list for fibers: {subject_fiber_list.shape}")
     
         # Add outlier information to the atlas
         atlas.cluster_outlier_std_threshold = cluster_outlier_std_threshold
@@ -657,18 +648,18 @@ def main():
         # now make the outlier clusters have positive numbers with -cluster_numbers_s so they can be saved also
         outdir3 = os.path.join(outdir2, 'outlier_tracts')
         if not os.path.exists(outdir3):
-            print("<wm_cluster_atlas.py> Output directory", outdir3, "does not exist, creating it.")
+            print(f"<{os.path.basename(__file__)}> Output directory {outdir3} does not exist, creating it.")
             os.makedirs(outdir3)
-        print('<wm_cluster_atlas.py> Saving outlier fiber files in directory:', outdir3)
+        print(f'<{os.path.basename(__file__)}> Saving outlier fiber files in directory: {outdir3}')
         mask = cluster_numbers_s < 0
-        cluster_numbers_outliers = -numpy.multiply(cluster_numbers_s, mask) - 1
+        cluster_numbers_outliers = -np.multiply(cluster_numbers_s, mask) - 1
         wma.cluster.output_and_quality_control_cluster_atlas(atlas, output_polydata_s, subject_fiber_list, input_polydatas, number_of_subjects, outdir3, cluster_numbers_outliers, color, embed, number_of_fibers_to_display, testing=testing, verbose=False, render_images=False)
     
-        test = subject_fiber_list[numpy.nonzero(mask)]
+        test = subject_fiber_list[np.nonzero(mask)]
     
         # Remove outliers for the next iteration
         # If any fibers were rejected, delete the corresponding entry in this list
-        subject_fiber_list = numpy.delete(subject_fiber_list, reject_idx)
+        subject_fiber_list = np.delete(subject_fiber_list, reject_idx)
         # Also delete the fiber in the polydata
         mask = cluster_numbers_s >= 0
         input_number_of_fibers = input_data.GetNumberOfLines()
@@ -676,14 +667,14 @@ def main():
         output_number_of_fibers = input_data.GetNumberOfLines()
         removed_fibers = input_number_of_fibers - output_number_of_fibers
     
-        print("End iteration Polydata size:", output_number_of_fibers, "Subject list for fibers:", subject_fiber_list.shape, "TEST:", test.shape)
+        print(f"End iteration Polydata size: {output_number_of_fibers} Subject list for fibers: {subject_fiber_list.shape} TEST: {test.shape}")
         log_file = open(fname_progress, 'a')
-        print(iteration,'\t', input_number_of_fibers,'\t', output_number_of_fibers,'\t', removed_fibers, '\t', float(removed_fibers)/original_total_fibers, '\t', numpy.mean(cluster_mean_distances), '\t', numpy.mean(cluster_mean_probabilities), '\t', numpy.mean(cluster_subjects_before), '\t', numpy.mean(cluster_subjects_after), '\t', numpy.mean(cluster_size_before), '\t', numpy.mean(cluster_size_after), file=log_file)
+        print(iteration,'\t', input_number_of_fibers,'\t', output_number_of_fibers,'\t', removed_fibers, '\t', float(removed_fibers)/original_total_fibers, '\t', np.mean(cluster_mean_distances), '\t', np.mean(cluster_mean_probabilities), '\t', np.mean(cluster_subjects_before), '\t', np.mean(cluster_subjects_after), '\t', np.mean(cluster_size_before), '\t', np.mean(cluster_size_after), file=log_file)
         log_file.close()
     
     
     print("==========================\n")
-    print('<wm_cluster_atlas.py> Done clustering atlas. See output in directory:\n ', outdir, '\n')
+    print(f'<{os.path.basename(__file__)}> Done clustering atlas. See output in directory:\n {outdir} \n')
 
 if __name__ == '__main__':
     main()

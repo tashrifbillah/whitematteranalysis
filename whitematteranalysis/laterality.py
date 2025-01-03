@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 """ laterality.py
 
 This module calculates white matter fiber laterality indices.
@@ -18,29 +20,35 @@ LateralityResults (io.py)
 
 """
 
-import numpy
+import os
+import warnings
 
+import numpy as np
 import vtk
-try:
-    from joblib import Parallel, delayed
-    USE_PARALLEL = 1
-except ImportError:
-    USE_PARALLEL = 0
-    print("<laterality.py> Failed to import joblib, cannot multiprocess.")
-    print("<laterality.py> Please install joblib for this functionality.")
 
+from whitematteranalysis.utils.opt_pckg import optional_package
+
+from . import filter, similarity
 from .fibers import FiberArray
 from .io import LateralityResults
-from . import filter, similarity
+
+joblib, have_joblib, _ = optional_package("joblib")
+Parallel, _, _ = optional_package("joblib.Parallel")
+delayed, _, _ = optional_package("joblib.delayed")
+
+if not have_joblib:
+    warnings.warn(joblib._msg)
+    warnings.warn("Cannot multiprocess.")
+
 
 def compute_laterality_index(left, right, idx=None):
     ''' Compute laterality index from left and right hemisphere quantities.'''
 
-    laterality_index = numpy.zeros(len(left))
+    laterality_index = np.zeros(len(left))
 
     if idx == None:
         # if L=R=0, output 0. (avoid divide by 0, skip masked out data)
-        idx = numpy.nonzero(left)[0] & numpy.nonzero(right)[0]
+        idx = np.nonzero(left)[0] & np.nonzero(right)[0]
 
     # otherwise use input idx to select relevant data, to avoid doing
     # the above nonzero every time in a loop
@@ -78,14 +86,7 @@ class WhiteMatterLaterality:
         self.fibers = FiberArray()
 
     def __str__(self):
-        output = " sigma\t\t\t" + str(self.sigma) \
-            + "\n points_per_fiber\t" + str(self.points_per_fiber) \
-            + "\n threshold\t\t" + str(self.threshold) \
-            + "\n verbose\t\t" + str(self.verbose) \
-            + "\n parallel_jobs\t\t" + str(self.parallel_jobs) \
-            + "\n parallel_verbose\t" + str(self.parallel_verbose) \
-            + "\n fibers\n\t\t\t" \
-            + str(self.fibers)
+        output = f" sigma\t\t\t{str(self.sigma)}\n points_per_fiber\t{str(self.points_per_fiber)}\n threshold\t\t{str(self.threshold)}\n verbose\t\t{str(self.verbose)} \n parallel_jobs\t\t{str(self.parallel_jobs)}\n parallel_verbose\t{str(self.parallel_verbose)}\n fibers\n\t\t\t{str(self.fibers)}"
 
         return output
 
@@ -125,13 +126,13 @@ class WhiteMatterLaterality:
                 if self.fibers_per_hemisphere <= num_fibers:
                     num_fibers = self.fibers_per_hemisphere
                 else:
-                    raise Exception("Fibers per hemisphere is set too high for the dataset. Current subject maximum is"+str(num_fibers))
+                    raise Exception(f"Fibers per hemisphere is set too high for the dataset. Current subject maximum is {str(num_fibers)}")
         
             # grab num_fibers fibers from each hemisphere.
             # use the first n since they were randomly sampled from the whole dataset
             selected_right = self.fibers.index_right_hem[0:num_fibers]
             selected_left = self.fibers.index_left_hem[0:num_fibers]
-            mask = numpy.zeros(input_vtk_polydata.GetNumberOfLines())
+            mask = np.zeros(input_vtk_polydata.GetNumberOfLines())
             mask[selected_right] = 1
             mask[selected_left] = 1
             # go back to the input data and use just those fibers
@@ -139,18 +140,18 @@ class WhiteMatterLaterality:
             # Now convert to array with points and hemispheres as above
             self.fibers.convert_from_polydata(input_vtk_polydata)
             if self.verbose:
-                print("<laterality.py> Using ", num_fibers , " fibers per hemisphere.")
+                print(f"<{os.path.basename(__file__)}> Using {num_fibers} fibers per hemisphere.")
                 
         # square sigma for later Gaussian
         sigmasq = self.sigma * self.sigma
 
         # allocate outputs
         nf = self.fibers.number_of_fibers
-        laterality_index = numpy.zeros(nf)
-        right_hem_total = numpy.zeros(nf)
-        left_hem_total = numpy.zeros(nf)
-        #right_hem_distance = numpy.zeros([nf, nf])
-        #left_hem_distance = numpy.zeros([nf, nf])
+        laterality_index = np.zeros(nf)
+        right_hem_total = np.zeros(nf)
+        left_hem_total = np.zeros(nf)
+        #right_hem_distance = np.zeros([nf, nf])
+        #left_hem_distance = np.zeros([nf, nf])
 
 
         # grab all fibers from each hemisphere
@@ -159,17 +160,13 @@ class WhiteMatterLaterality:
 
         # tell user we are doing something
         if self.verbose:
-            print("<laterality.py> Fibers in each hemisphere.", \
-                "L:", self.fibers.number_left_hem, \
-                "R:", self.fibers.number_right_hem, \
-                "/ Total:", self.fibers.number_of_fibers)
-            print("<laterality.py> Starting to compute laterality indices")
+            print(f"<{os.path.basename(__file__)}> Fibers in each hemisphere. L: {self.fibers.number_left_hem} R: {self.fibers.number_right_hem} / Total: {self.fibers.number_of_fibers}")
+            print(f"<{os.path.basename(__file__)}> Starting to compute laterality indices")
 
         # run the computation, either in parallel or not
-        if (USE_PARALLEL & (self.parallel_jobs > 1)):
+        if (have_joblib & (self.parallel_jobs > 1)):
             if self.verbose:
-                print("<laterality.py> Starting parallel code. Processes:", \
-                    self.parallel_jobs)
+                print(f"<{os.path.basename(__file__)}> Starting parallel code. Processes: {self.parallel_jobs}")
 
             # compare to right hemisphere (reflect fiber first if in left hem)
             ret = Parallel(
@@ -201,8 +198,8 @@ class WhiteMatterLaterality:
             #left_hem_distance = ret[1]
 
         else:
-            right_hem_distance = numpy.zeros([nf, len(self.fibers.index_right_hem)])
-            left_hem_distance = numpy.zeros([nf, len(self.fibers.index_left_hem)])
+            right_hem_distance = np.zeros([nf, len(self.fibers.index_right_hem)])
+            left_hem_distance = np.zeros([nf, len(self.fibers.index_left_hem)])
 
             # compare to right hemisphere (reflect fiber first if in left hem)
             for lidx in self.fibers.index_hem:

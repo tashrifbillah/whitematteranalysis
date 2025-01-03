@@ -18,7 +18,7 @@ On this page, we provide step-by-step instructions to guide a user to run the en
     
 ## 2. Download tutorial data
    - Download the tutorial data package ([WMA_tutorial_data.zip](https://www.dropbox.com/s/beju3c0g9jqw5uj/WMA_tutorial_data.zip?dl=0), ~2.5GB)
-   - Decompress the downlaoded zip file to *Desktop* of your computer
+   - Decompress the downloaded zip file to *Desktop* of your computer
    - Files in the decompressed data folder should be organized as below, including:
      - The O'Donnell Research Group (ORG) white matter atlas (“_ORG-Atlases-1.1.1_”)
         > The ORG atlas contains an 800-cluster parcellation of the entire white matter and an anatomical fiber tract parcellation (see [here](http://dmri.slicer.org/atlases) for more details).
@@ -30,21 +30,21 @@ On this page, we provide step-by-step instructions to guide a user to run the en
 
 ## 3. Prepare terminal environment to run related commands
    - Open terminal from the operating system that you are using
-      - MacOS: Open */Applications/Utilities/Terminal.app*
+      - macOS: Open */Applications/Utilities/Terminal.app*
       - Linux (e.g. Red Hat): Open */Applications/System Tools/Terminal*
       - Windows (e.g. Windows 10): TBD
     
-        > **_Note_**: This tutorial is based on MacOS. All commands listed can be directly used on Linux. For Windows, users need to change the commands by using Windows system separator “\”.
+        > **_Note_**: This tutorial is based on macOS. All commands listed can be directly used on Linux. For Windows, users need to change the commands by using Windows system separator “\”.
 
    - Go to the tutorial data folder from terminal by typing the following command. (Make sure that you have decompressed the tutorial data to your desktop)
     
         ```bash
         cd /Users/YOUR_USER_NAME/Desktop/WMA_tutorial_data
         ```
-      - You terminal should look like the below image (the username should change according to your computer). Type ```ls``` to display the files in the tutorial data folder on the terminal.
+      - Your terminal should look like the below image (the username should change according to your computer). Type ```ls``` to display the files in the tutorial data folder on the terminal.
     
         ![test image](tutorial-pics/fig_terminal_env.png)
-    
+
 ## 4. Initial tractography data quality control (QC)
 
 This step performs QC of the input tractography data (“_example-UKF-data.vtk_”) to: 1) verify correct appearance of tract anatomy, and 2) verify tractography is stored using the same spatial coordinate system as the atlas tractography data.
@@ -74,10 +74,48 @@ This step performs QC of the input tractography data (“_example-UKF-data.vtk_�
      wm_quality_control_tract_overlap.py ./ORG-Atlases-1.1.1/ORG-800FC-100HCP/atlas.vtp ./example-UKF-data.vtk ./QC/InputTractOverlap/
      ```
         
-      - A new “_QC/InputTractOverlap_” folder is generated, including multiple JPG files to enable visualization of tract overlap from different views. Open one of them, e.g., “_view_left_tract_overlap.jpg_”, where the different colors represent the different tractography data. The yellow tract is from the altas, and the red tract shows the input tractography. This image shows that the two tractography files are in the same coordinate system, but they are not aligned together.
+      - A new “_QC/InputTractOverlap_” folder is generated, including multiple JPG files to enable visualization of tract overlap from different views. Open one of them, e.g., “_view_left_tract_overlap.jpg_”, where the different colors represent the different tractography data. The yellow tract is from the atlas, and the red tract shows the input tractography. This image shows that the two tractography files are in the same coordinate system, but they are not aligned together.
        
         ![test image](tutorial-pics/fig_qc_input_overlap.jpg)
         
+### 4.1. Optional: approximate brain size matching
+
+The ORG atlas was designed to work with adult's brain data. When working with infant data, you may need to apply a
+transformation to them so that the relevant data gets scaled to approximately match an adult's brain size. The purpose
+of this transformation is to ensure a good fit for the registration process.
+
+The transform file can be obtained using `Slicer`'s `Transform` module. The transformation used for scaling purposes
+is a linear transform. The scaling factor (i.e. the diagonal components of the generated transformation matrix) is the
+value that needs to be adjusted. Typically, a 1.5 value (across all three components) has been found to provide
+reasonably good results. Once the `.tfm` file has been saved, it is used as the transform filename for the
+`wm_harden_transform.py` script.
+
+A `.tfm` file containing a linear transform will look like this:
+```
+#Insight Transform File V1.0
+#Transform 0
+Transform: AffineTransform_double_3_3
+Parameters: 0.6666666666666666 0 0 0 0.6666666666666666 0 0 0 0.6666666666666666 0 0 0
+FixedParameters: 0 0 0
+```
+
+Whether the chosen scaling factor is a reasonably good estimate can be assessed by applying it to a diffusion scalar
+map (e.g. the FA image) in `Slicer` and seeing if it provides a brain that has the approximate same size brain as the
+ORG atlas FA image.
+
+Thus, prior to feeding the obtained tractography data to the pipeline, the transformation would be applied to the
+tractography `vtk` file so that it can be scaled to approximately the size of an adult brain data.
+
+After obtaining the tracts and the clusters, using the same script and the transform file, the inverse transformation
+must be applied to scale back the tractography data to the original size.
+
+In order to apply a transform file, the `-t` option followed by the filename containing the transformation must be
+provided to the `wm_apply_ORG_atlas_to_subject.sh` script, e.g.
+
+```shell
+wm_apply_ORG_atlas_to_subject.sh -i InputTractography -o OutputDirectory -a ORGAtlasFolder -s PathTo3DSlicer -t TransformFile
+```
+
 ## 5. Tractography registration
 
 This steps registers the input tractography data to the ORG atlas tractography data.
@@ -104,13 +142,13 @@ This steps registers the input tractography data to the ORG atlas tractography d
      wm_quality_control_tract_overlap.py ./ORG-Atlases-1.1.1/ORG-800FC-100HCP/atlas.vtp ./TractRegistration/example-UKF-data/output_tractography/example-UKF-data_reg.vtk ./QC/RegTractOverlap/
      ```
    
-      - A new folder “_QC/RegTractOverlap_” is generated, including multiple JPG files to enable visualization of tract overlap from different views. Open one of them, e.g., “_view_left_tract_overlap.jpg_”, where the different colors represent the different tractography data (as displayed below). The yellow tract is from the altas, and the red tract shows the input tractography. This image shows the input tractography data has been registered into the atlas space (overlapping well with the atlas tractography data; see above for the tract overlap before registration).
+      - A new folder “_QC/RegTractOverlap_” is generated, including multiple JPG files to enable visualization of tract overlap from different views. Open one of them, e.g., “_view_left_tract_overlap.jpg_”, where the different colors represent the different tractography data (as displayed below). The yellow tract is from the atlas, and the red tract shows the input tractography. This image shows the input tractography data has been registered into the atlas space (overlapping well with the atlas tractography data; see above for the tract overlap before registration).
 
          ![test image](tutorial-pics/fig_qc_reg_overlap.jpg)
 
-## 6. Tractograpy fiber clustering
+## 6. Tractography fiber clustering
     
-This step performs fiber clustering of the registered tractography data, resulting in an 800-cluster white matter parcellation according to the ORG atlas. This includes the following sub-steps: 1) initial fiber clustering of the registered tractography, and 2) outlier removal to filter false positive fibers, 3) assessesment of the hemispheric location (left, right or commissural) of each fiber per cluster, 4) transformation of the fiber clusters back to the input tractography space, and 5) separation of the clusters into left, right and commissural tracts.
+This step performs fiber clustering of the registered tractography data, resulting in an 800-cluster white matter parcellation according to the ORG atlas. This includes the following sub-steps: 1) initial fiber clustering of the registered tractography, and 2) outlier removal to filter false positive fibers, 3) assessment of the hemispheric location (left, right or commissural) of each fiber per cluster, 4) transformation of the fiber clusters back to the input tractography space, and 5) separation of the clusters into left, right and commissural tracts.
 
    - Run initial fiber clustering using “**_wm_cluster_from_atlas.py_**” 
     
@@ -180,7 +218,7 @@ This step performs fiber clustering of the registered tractography data, resulti
      ```
      wm_harden_transform.py -i -t ./TractRegistration/example-UKF-data/output_tractography/itk_txform_example-UKF-data.tfm ./FiberClustering/OutlierRemovedClusters/example-UKF-data_reg_outlier_removed/ ./FiberClustering/TransformedClusters/example-UKF-data/ /Applications/Slicer.app/Contents/MacOS/Slicer
      ```
-        > **_Note_**: In this example, we give the path to 3D Slicer under a MacOS machine. This path needs to be changed according to your computer.
+        > **_Note_**: In this example, we give the path to 3D Slicer under a macOS machine. This path needs to be changed according to your computer.
          
       - A new folder “_FiberClustering/TransformedClusters/example-UKF-data_” is generated. Inside the folder, there are 800 vtp files, which have been transformed in the input tractography space.
        
@@ -244,11 +282,21 @@ This step computes diffusion measurements of the fiber clusters and the anatomic
      wm_diffusion_measurements.py ./FiberClustering/SeparatedClusters/tracts_commissural/ ./DiffusionMeasurements/commissural_clusters.csv /Applications/Slicer4p10realease.app/Contents/Extensions-27501/SlicerDMRI/lib/Slicer-4.10/cli-modules/FiberTractMeasurements
      ```
        
-        > **_Note_**: Here, we give the path to the FiberTractMeasufrements module under MacOS. The path needs to be changed based on the operating system you are using.
-         
+        > **_Note_**: Here, we give the path to the FiberTractMeasurements module under macOS. The path needs to be changed based on the operating system you are using.
+        > If using a Linux OS, the script should be called as e.g.
+
+        ```bash
+        wm_diffusion_measurements.py ./FiberClustering/SeparatedClusters/tracts_left_hemisphere/ ./DiffusionMeasurements/left_hemisphere_clusters.csv "/path/to/slicer/binary --launch /path/to/slicer/cli-modules/FiberTractMeasurements"
+        ```
+
+        where `/path/to/slicer/binary` can be e.g. `/opt/Slicer-5.2.2-linux-amd64/Slicer`, and where
+        `/path/to/slicer/cli-modules/FiberTractMeasurements` can be e.g.
+        `/opt/Slicer-5.2.2-linux-amd64/NA-MIC/Extensions-31382/SlicerDMRI/lib/Slicer-5.2/cli-modules/FiberTractMeasurements`
+        if using `Slicer 5.2.2` and having it installed in `/opt/`.
+
       - A new folder “_DiffusionMeasurements_” is generated, containing three CSV files. Open one of them using Excel to see the diffusion measurements statistics. 
         
-        > **_Note_**: For the empty vtp file (e.g. cluster_00001 is a hemispheric cluster, and it does have fibers in the commissual category), “NAN” will be assigned.
+        > **_Note_**: For the empty vtp file (e.g. cluster_00001 is a hemispheric cluster, and it does have fibers in the commissural category), “NAN” will be assigned.
           
           ![test image](tutorial-pics/fig_csv_clusters.png)
           

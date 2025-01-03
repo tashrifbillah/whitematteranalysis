@@ -1,36 +1,32 @@
 #!/usr/bin/env python
-#!/Library/Frameworks/EPD64.framework/Versions/Current/bin/ipython
-
-# Run registration on the test dataset.
+# -*- coding: utf-8 -*-
 
 import argparse
 import os
-import numpy
-import vtk
-import time
 import sys
+import time
+import warnings
 
-try:
-    import whitematteranalysis as wma
-except:
-    print("<wm_register.py> Error importing white matter analysis package\n")
-    raise
+import numpy as np
+import vtk
 
-HAVE_PLT = 1
-try:
-    import matplotlib.pyplot as plt
-except:
-    print("<wm_quality_control.py> Error importing matplotlib.pyplot package, can't plot quality control data.\n")
-    HAVE_PLT = 0    
+import whitematteranalysis as wma
+from whitematteranalysis.utils.opt_pckg import optional_package
 
-def main():
-    #-----------------
-    # Parse arguments
-    #-----------------
+matplotlib, have_mpl, _ = optional_package("matplotlib")
+plt, _, _ = optional_package("matplotlib.pyplot")
+
+if not have_mpl:
+    warnings.warn(matplotlib._msg)
+    warnings.warn("Cannot plot quality control data.")
+
+
+def _build_arg_parser():
+
     parser = argparse.ArgumentParser(
         description="Perform quality control steps (rendering images and fiber length testing) for all vtk and vtp files in the input directory.",
         epilog="Written by Lauren O\'Donnell, odonnell@bwh.harvard.edu.  Please reference \"O'Donnell, Lauren J., and C-F. Westin. Automatic tractography segmentation using a high-dimensional white matter atlas. Medical Imaging, IEEE Transactions on 26.11 (2007): 1562-1575.\"")
-    
+
     parser.add_argument(
         'inputDirectory',
         help='A directory of whole-brain tractography as vtkPolyData (.vtk or .vtp).')
@@ -38,33 +34,44 @@ def main():
         'outputDirectory',
         help='Quality control information will be stored in the output directory, which will be created if it does not exist.')
     # for now this is not parallelized. that would complicate summary info about group.
-    #parser.add_argument(
+    # parser.add_argument(
     #    '-j', action="store", dest="numberOfJobs", type=int,
     #    help='Number of processors to use.')
-     
-    args = parser.parse_args()
+
+    return parser
+
+
+def _parse_args(parser):
+
+    return parser.parse_args()
+
+
+def main():
+
+    parser = _build_arg_parser()
+    args = _parse_args(parser)
     
-    print("<quality_control> Starting...")
+    print(f"<{os.path.basename(__file__)}> Starting...")
     
     if not os.path.isdir(args.inputDirectory):
-        print("<register> Error: Input directory", args.inputDirectory, "does not exist.")
+        print(f"<{os.path.basename(__file__)}> Error: Input directory {args.inputDirectory} does not exist.")
         exit()
     
     output_dir = args.outputDirectory
     if not os.path.exists(output_dir):
-        print("<register> Output directory", output_dir, "does not exist, creating it.")
+        print(f"<{os.path.basename(__file__)}> Output directory {output_dir} does not exist, creating it.")
         os.makedirs(output_dir)
     
     input_polydatas = wma.io.list_vtk_files(args.inputDirectory)
     number_of_subjects = len(input_polydatas)
-    print("<quality_control> Found ", number_of_subjects, "subjects in input directory:", args.inputDirectory)
+    print(f"<{os.path.basename(__file__)}> Found {number_of_subjects} subjects in input directory {args.inputDirectory}")
     
     if number_of_subjects < 1:
         print("\n<quality_control> Error: No .vtk or .vtp files were found in the input directory.\n")
         exit()
     
-    print("<quality_control> Testing all files for quality control (computing fiber length measurements and rendering to make sure header and gradient orientations are ok).")
-    print("<quality_control> See the README.txt file in the output directory for more overview information.")
+    print(f"<{os.path.basename(__file__)}> Testing all files for quality control (computing fiber length measurements and rendering to make sure header and gradient orientations are ok).")
+    print(f"<{os.path.basename(__file__)}> See the README.txt file in the output directory for more overview information.")
     
     # output summary files to save information about what was run
     readme_fname = os.path.join(output_dir, 'README.txt')
@@ -82,14 +89,14 @@ def main():
     outstr += str(number_of_subjects)
     outstr += '\n'
     outstr += '\n'
-    outstr +=  "Current date: "  + time.strftime("%x")
+    outstr +=  f"Current date: {time.strftime('%x')}"
     outstr += '\n'
-    outstr +=  "Current time: " + time.strftime("%X")
+    outstr +=  f"Current time: {time.strftime('%X')}"
     outstr += '\n'
     outstr += '\n'
-    outstr += "Path to Script: " + os.path.realpath(__file__)
+    outstr += f"Path to Script: {os.path.realpath(__file__)}"
     outstr += '\n'
-    outstr += "Working Directory: " + os.getcwd()
+    outstr += f"Working Directory: {os.getcwd()}"
     outstr += '\n'
     outstr += '\n'
     outstr += "Description of Outputs\n"
@@ -154,23 +161,23 @@ def main():
     outstr = "SUBJECT_ID\tFIBER_STEP_SIZE\tTOTAL_POINTS\tMEAN_FIBER_LENGTH\tTOTAL_FIBERS\t"
     for test_length in fiber_test_lengths[1:]:
         outstr = outstr + "LEN_" + str(test_length) + '\t'
-    outstr = outstr + '\n'
+    outstr = f'{outstr}\n'
     fibers_qc_file.write(outstr)
     fibers_qc_file.close()
     
     data_qc_file = open(data_qc_fname, 'w')
     outstr = "SUBJECT_ID\tDATA_INFORMATION (field name, number of components, point or cell data)"
-    outstr = outstr + '\n'
+    outstr = f'{outstr}\n'
     data_qc_file.write(outstr)
     data_qc_file.close()
     
     spatial_qc_file = open(spatial_qc_fname, 'w')
     outstr = "SUBJECT_ID\tXmin\tXmax\tYmin\tYmax\tZmin\tZmax"    
-    outstr = outstr + '\n'
+    outstr = f'{outstr}\n'
     spatial_qc_file.write(outstr)
     spatial_qc_file.close()
     
-    if HAVE_PLT:
+    if have_mpl:
         plt.figure(1)
     
     # Loop over subjects and check each
@@ -178,24 +185,25 @@ def main():
     appender = vtk.vtkAppendPolyData()
     for fname in input_polydatas:
         subject_id = os.path.splitext(os.path.basename(fname))[0]
-        print("Subject ", subject_idx, "/", number_of_subjects, "ID:", subject_id)
+        print(f"Subject {subject_idx} / {number_of_subjects} ID: {subject_id}")
     
         # Read data
         pd = wma.io.read_polydata(fname)
     
         # Preprocess for rendering without short fibers and compute fiber lengths
         pd2, lengths, step_size = wma.filter.preprocess(pd, 5, return_lengths=True, verbose=False)
-        lengths = numpy.array(lengths)
+        lengths = np.array(lengths)
         
         # Render individual subject, only including fibers above 5mm.
         ren = wma.render.render(pd2, 1000, verbose=False)
-        output_dir_subdir = os.path.join(output_dir, 'tract_QC_' + subject_id)
+        output_dir_subdir = os.path.join(output_dir, f'tract_QC_{subject_id}')
         if not os.path.exists(output_dir_subdir):
             os.makedirs(output_dir_subdir)
         ren.save_views(output_dir_subdir, subject_id)
+        del ren
     
         print('Multiple views for individual subject')
-        html_individual_multiviews = os.path.join(output_dir_subdir, 'view_multiple_'+subject_id+'.html')
+        html_individual_multiviews = os.path.join(output_dir_subdir, f'view_multiple_{subject_id}.html')
         f = open(html_individual_multiviews, 'w')
         outstr = "<!DOCTYPE html>\n<html>\n"
         f.write(outstr)
@@ -206,24 +214,24 @@ def main():
         outstr += "h1 {text-align: center;\n}\n"
         outstr += "</style>\n"
         f.write(outstr)
-        outstr = "<body>\n<h1>All " + subject_id + " Views</h1>\n"
+        outstr = f"<body>\n<h1>All {subject_id} Views</h1>\n"
         f.write(outstr)
         f.close()
     
         for (view, descrip) in zip(html_views, html_views_descrip):
             f = open(html_individual_multiviews, 'a')
-            img_fname = os.path.join(view + subject_id + '.jpg')
+            img_fname = os.path.join(f'{view}{subject_id}.jpg')
             outstr = "<div class=\"floated_img\">\n"
-            outstr+= "<a href=\"" + img_fname + "\" ><img src=\"" + img_fname + "\" alt=\"" + subject_id + "\"  width=\"450\"></a>\n"
-            outstr+= "<p>" + descrip + "</p>\n</div>\n"
+            outstr+= f"<a href=\"{img_fname}\" ><img src=\"{img_fname}\" alt=\"{subject_id}\" width=\"450\"></a>\n"
+            outstr+= f"<p>{descrip}</p>\n</div>\n"
             f.write(outstr)
             f.close()
     
         # Save view information in html file
         for (fname, view) in zip(html_view_fnames, html_views):
             f = open(fname, 'a')
-            img_fname = os.path.join('tract_QC_' + subject_id, view + subject_id + '.jpg')
-            html_fname = os.path.join('tract_QC_' + subject_id, 'view_multiple_'+subject_id+'.html')
+            img_fname = os.path.join(f'tract_QC_{subject_id}', f'{view}{subject_id}.jpg')
+            html_fname = os.path.join(f'tract_QC_{subject_id}', f'view_multiple_{subject_id}.html')
             print(output_dir_subdir)
             print(img_fname)
             print(html_individual_multiviews)
@@ -233,40 +241,40 @@ def main():
             #outstr+= "<figcaption>" + subject_id + "</figcaption>\n"
             #outstr+= "</figure>\n"
             outstr = "<div class=\"floated_img\">\n"
-            outstr+= "<a href=\"" + html_fname + "\" ><img src=\"" + img_fname + "\" alt=\"" + subject_id + "\"  width=\"300\"></a>\n"
-            outstr+= "<p>" + subject_id + "</p>\n</div>\n"
+            outstr+= f"<a href=\"{html_fname}\" ><img src=\"{img_fname}\" alt=\"{subject_id}\"  width=\"300\"></a>\n"
+            outstr+= f"<p>{subject_id}</p>\n</div>\n"
             f.write(outstr)
             f.close()
     
         # Compute and save stats about this subject's fiber histogram
         # numbers of fibers at different possible threshold lengths
         pd2, lengths, step_size = wma.filter.preprocess(pd, 20, return_lengths=True, verbose=False)
-        lengths = numpy.array(lengths)
+        lengths = np.array(lengths)
         fibers_qc_file = open(fibers_qc_fname, 'a')
-        outstr = str(subject_id) +  '\t'
-        outstr = outstr + '{0:.4f}'.format(step_size) + '\t'
+        outstr = f'{str(subject_id)}\t'
+        outstr = f'{outstr}{step_size:.4f}\t'
         # total points in the dataset
-        outstr = outstr + str(pd.GetNumberOfPoints()) + '\t'
+        outstr = f'{outstr}{str(pd.GetNumberOfPoints())}\t'
         # mean fiber length
-        outstr = outstr + str(numpy.mean(lengths)) + '\t'
+        outstr = f'{outstr}{str(np.mean(lengths))}\t'
         # total numbers of fibers
         for test_length in fiber_test_lengths:
-            number_fibers = numpy.count_nonzero(lengths > test_length)
-            outstr = outstr + str(number_fibers) + '\t'
-        outstr = outstr + '\n'
+            number_fibers = np.count_nonzero(lengths > test_length)
+            outstr = f'{outstr}{str(number_fibers)}\t'
+        outstr = f'{outstr}\n'
         fibers_qc_file.write(outstr)
         fibers_qc_file.close()
     
         # Save information about the spatial location of the fiber tracts
         spatial_qc_file = open(spatial_qc_fname, 'a')
-        outstr = str(subject_id) +  '\t'
+        outstr = f'{str(subject_id)}\t'
         for bound in pd.GetBounds():
-            outstr = outstr + str(bound) + '\t'
-        outstr = outstr + '\n'
+            outstr = f'{outstr}{str(bound)}\t'
+        outstr = f'{outstr}\n'
         spatial_qc_file.write(outstr)
         
         # Save the subject's fiber lengths  
-        if HAVE_PLT:
+        if have_mpl:
             plt.figure(1)
             if lengths.size > 1:
                 plt.hist(lengths, bins=100, histtype='step', label=subject_id)
@@ -290,8 +298,8 @@ def main():
         # number_rendered_fibers = 500
         number_rendered_fibers = 100
         pd3 = wma.filter.downsample(pd2, number_rendered_fibers, verbose=False)
-        mask = numpy.ones(number_rendered_fibers)
-        colors = numpy.multiply(mask, subject_idx)
+        mask = np.ones(number_rendered_fibers)
+        colors = np.multiply(mask, subject_idx)
         pd3 = wma.filter.mask(pd3, mask, colors, verbose=False)
         if (vtk.vtkVersion().GetVTKMajorVersion() >= 6.0):
             appender.AddInputData(pd3)
@@ -300,20 +308,20 @@ def main():
     
         # Record what scalar/tensor data is present in this subject's file
         data_qc_file = open(data_qc_fname, 'a')
-        outstr = str(subject_id) +  '\t'
+        outstr = f'{str(subject_id)} \t'
         inpointdata = pd.GetPointData()
         incelldata = pd.GetCellData()
         if inpointdata.GetNumberOfArrays() > 0:
             point_data_array_indices = list(range(inpointdata.GetNumberOfArrays()))            
             for idx in point_data_array_indices:
                 array = inpointdata.GetArray(idx)
-                outstr = outstr + str(array.GetName()) + '\t' + str(array.GetNumberOfComponents()) + '\t' + 'point' + '\t'
+                outstr = f'{outstr}{str(array.GetName())}\t{str(array.GetNumberOfComponents())}\tpoint\t'
         if incelldata.GetNumberOfArrays() > 0:
             cell_data_array_indices = list(range(incelldata.GetNumberOfArrays()))            
             for idx in cell_data_array_indices:
                 array = incelldata.GetArray(idx)
-                outstr = outstr + str(array.GetName()) + '\t' + str(array.GetNumberOfComponents()) +'\t'  + 'cell' + '\t'
-        outstr = outstr + '\n'
+                outstr = f'{outstr}{str(array.GetName())}\t{str(array.GetNumberOfComponents())}\tcell\t'
+        outstr = f'{outstr}\n'
         data_qc_file.write(outstr)
         data_qc_file.close()
     
@@ -323,7 +331,7 @@ def main():
         del pd3
         subject_idx += 1
     
-    if HAVE_PLT:
+    if have_mpl:
         plt.figure(1)
         plt.title('Histogram of fiber lengths for all subjects')
         plt.xlabel('fiber length (mm)')
@@ -337,7 +345,7 @@ def main():
             print("Groupwise tract length histogram save failed. Check if the input datasets have any fibers--all may be empty.")
         plt.close()
     
-    print("<quality_control> Final step: rendering all vtk files together.")
+    print(f"<{os.path.basename(__file__)}> Final step: rendering all vtk files together.")
     appender.Update()
     pd_all = appender.GetOutput()
     ren = wma.render.render(pd_all, verbose=False)
@@ -352,7 +360,7 @@ def main():
     # Finish html files
     for (fname) in html_view_fnames:
         f = open(fname, 'a')
-        img_fname = os.path.join(output_dir_subdir, view + subject_id + '.jpg')
+        img_fname = os.path.join(output_dir_subdir, f'{view}{subject_id}.jpg')
         outstr = "\n</body>\n</html>\n"
         f.write(outstr)
         f.close()

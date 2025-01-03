@@ -1,37 +1,23 @@
 #!/usr/bin/env python
-#!/Library/Frameworks/EPD64.framework/Versions/Current/bin/ipython
+# -*- coding: utf-8 -*-
 
 import argparse
-import os
 import multiprocessing
+import os
 import time
 
-import numpy
+import numpy as np
+import scipy.optimize
 import vtk
 
-try:
-    import whitematteranalysis as wma
-except:
-    print("<wm_register.py> Error importing white matter analysis package\n")
-    raise
+import whitematteranalysis as wma
 
-try:
-    import scipy.optimize
-except ImportError:
-    print("")
-    print("<wm_register_multisubject.py> ERROR: Failed to import scipy.optimize, cannot run registration.")
-    print("Please install scipy.")
-    print("")
-    exit()
 
-def main():
-    #-----------------
-    # Parse arguments
-    #-----------------
+def _build_arg_parser():
+
     parser = argparse.ArgumentParser(
         description="Runs multisubject unbiased group registration of tractography.",
         epilog="Written by Lauren O\'Donnell, odonnell@bwh.harvard.edu.  Please reference \"Unbiased Groupwise Registration of White Matter Tractography. LJ O'Donnell,  WM Wells III, Golby AJ, CF Westin. Med Image Comput Comput Assist Interv. 2012;15(Pt 3):123-30.\"")
-    
     parser.add_argument(
         'inputDirectory',
         help='A directory of whole-brain tractography as vtkPolyData (.vtk or .vtp).')
@@ -68,64 +54,74 @@ def main():
     parser.add_argument(
         '-advanced_only_random_seed', action='store', dest="randomSeed", type=int,
         help='(Advanced parameter for testing only.) Set random seed for reproducible sampling in software tests.')
-     
-     
-    args = parser.parse_args()
-    
+
+    return parser
+
+
+def _parse_args(parser):
+
+    return parser.parse_args()
+
+
+def main():
+
+    parser = _build_arg_parser()
+    args = _parse_args(parser)
+
     print("\n\n<register> =========GROUP REGISTRATION============")
-    print("<register> Performing unbiased group registration.")
-    print("<register> Input  directory: ", args.inputDirectory)
-    print("<register> Output directory: ", args.outputDirectory)
+    print(f"<{os.path.basename(__file__)}> Performing unbiased group registration.")
+    print(f"<{os.path.basename(__file__)}> Input  directory: {args.inputDirectory}")
+    print(f"<{os.path.basename(__file__)}> Output directory: {args.outputDirectory}")
     print("\n<register> ============PARAMETERS=================")
     
     mode = args.mode
-    print("<register> Registration mode:", mode)
+    print(f"<{os.path.basename(__file__)}> Registration mode: {mode}")
     
     if not os.path.isdir(args.inputDirectory):
-        print("<register> Error: Input directory", args.inputDirectory, "does not exist.")
+        print(f"<{os.path.basename(__file__)}> Error: Input directory {args.inputDirectory} does not exist.")
         exit()
     
     outdir = args.outputDirectory
     if not os.path.exists(outdir):
-        print("<register> Output directory", outdir, "does not exist, creating it.")
+        print(f"<{os.path.basename(__file__)}> Output directory {outdir} does not exist, creating it.")
         os.makedirs(outdir)
     
     number_of_fibers = args.numberOfFibers
-    print("<register> Number of fibers to analyze per subject: ", number_of_fibers)
+    print(f"<{os.path.basename(__file__)}> Number of fibers to analyze per subject: {number_of_fibers}")
     
     fiber_length = args.fiberLength
-    print("<register> Minimum length of fibers to analyze (in mm): ", fiber_length)
+    print(f"<{os.path.basename(__file__)}> Minimum length of fibers to analyze (in mm): {fiber_length}")
     
     fiber_length_max = args.fiberLengthMax
-    print("<register> Maximum  length of fibers to analyze (in mm): ", fiber_length_max)
+    print(f"<{os.path.basename(__file__)}> Maximum  length of fibers to analyze (in mm): {fiber_length_max}")
     
     parallel_jobs = args.numberOfJobs
-    print("<register> Number of jobs to use:", parallel_jobs)
+    print(f"<{os.path.basename(__file__)}> Number of jobs to use: {parallel_jobs}")
     
     if args.flag_verbose:
-        print("<register> Verbose display and intermediate image saving ON.")
+        print(f"<{os.path.basename(__file__)}> Verbose display and intermediate image saving ON.")
     else:
-        print("<register> Verbose display and intermediate image saving OFF.")
+        print(f"<{os.path.basename(__file__)}> Verbose display and intermediate image saving OFF.")
     verbose = args.flag_verbose
     
     
     #points_per_fiber = args.pointsPerFiber
-    #print "<register> Number of points for fiber representation: ", points_per_fiber
+    #print(f"<{os.path.basename(__file__)}> Number of points for fiber representation: {points_per_fiber}")
     
     if args.flag_norender:
-        print("<register> No rendering (for compute servers without X connection).")
+        print(f"<{os.path.basename(__file__)}> No rendering (for compute servers without X connection).")
     else:
-        print("<register> Rendering. For intermediate image saving to check progress.")
+        print(f"<{os.path.basename(__file__)}> Rendering. For intermediate image saving to check progress.")
     no_render = args.flag_norender
     
     if args.flag_midsag_symmetric:
-        print("<register> Midsag_Symmetric registration ON.")
+        print(f"<{os.path.basename(__file__)}> Midsag_Symmetric registration ON.")
     else:
-        print("<register> Midsag_Symmetric registration OFF.")
+        print(f"<{os.path.basename(__file__)}> Midsag_Symmetric registration OFF.")
     midsag_symmetric = args.flag_midsag_symmetric
     
     if args.randomSeed is not None:
-        print("<register> Setting random seed to: ", args.randomSeed)
+        print(f"<{os.path.basename(__file__)}> Setting random seed to: {args.randomSeed}")
     random_seed = args.randomSeed
     
     # -------------
@@ -209,7 +205,7 @@ def main():
         initial_step_per_scale = [5, 4, 3, 2, 1.5]
         final_step_per_scale = [3, 3, 2, 1, 1]
         # use only very local information (small sigma)
-        # sigma 1.25 is apparently not useful: stick with a minumum of 2mm
+        # sigma 1.25 is apparently not useful: stick with a minimum of 2mm
         sigma_per_scale = [5, 3, 2, 2, 2]
         # how many times to repeat the process at each scale
         iterations_per_scale = [10, 10, 8, 5, 2]
@@ -241,7 +237,7 @@ def main():
         initial_step_per_scale = [5, 4, 3, 2, 1.5]
         final_step_per_scale = [3, 3, 2, 1, 1]
         # use only very local information (small sigma)
-        # sigma 1.25 is apparently not useful: stick with a minumum of 2mm
+        # sigma 1.25 is apparently not useful: stick with a minimum of 2mm
         sigma_per_scale = [5, 3, 2, 2, 2]
         # how many times to repeat the process at each scale
         iterations_per_scale = [10, 10, 8, 5, 2]
@@ -291,7 +287,7 @@ def main():
         nonrigid = True
     
     else:
-        print("\n<register> Error: Unknown registration mode:", mode)
+        print(f"\n<register> Error: Unknown registration mode: {mode}")
         exit()
     
     # -------------
@@ -301,7 +297,7 @@ def main():
     # Test the input files exist
     input_polydatas = wma.io.list_vtk_files(args.inputDirectory)
     number_of_subjects = len(input_polydatas)
-    print("<register> Found ", number_of_subjects, "subjects in input directory:", args.inputDirectory)
+    print(f"<{os.path.basename(__file__)}> Found {number_of_subjects} subjects in input directory {args.inputDirectory}")
     if number_of_subjects < 1:
         print("\n<register> Error: No .vtk or .vtp files were found in the input directory.\n")
         exit()
@@ -346,7 +342,7 @@ def main():
     # We have to add polydatas after setting nonrigid in the register object
     for (pd, id) in zip(input_pds, subject_ids):
         register.add_polydata(pd, id)
-    print("<register> Number of points for fiber representation: ", points_per_fiber)
+    print(f"<{os.path.basename(__file__)}> Number of points for fiber representation: {points_per_fiber}")
     register.points_per_fiber = points_per_fiber
     
     # output summary file to save information about what was run
@@ -365,14 +361,14 @@ def main():
     outstr += str(number_of_subjects)
     outstr += '\n'
     outstr += '\n'
-    outstr +=  "Current date: "  + time.strftime("%x")
+    outstr +=  f"Current date: {time.strftime('%x')}"
     outstr += '\n'
-    outstr +=  "Current time: " + time.strftime("%X")
+    outstr +=  f"Current time: {time.strftime('%X')}"
     outstr += '\n'
     outstr += '\n'
-    outstr += "Path to Script: " + os.path.realpath(__file__)
+    outstr += f"Path to Script: {os.path.realpath(__file__)}"
     outstr += '\n'
-    outstr += "Working Directory: " + os.getcwd()
+    outstr += f"Working Directory: {os.getcwd()}"
     outstr += '\n'
     outstr += '\n'
     outstr += "Description of Outputs\n"
@@ -396,23 +392,23 @@ def main():
     outstr += '\n'
     outstr += "Parameters\n"
     outstr += '----------------------\n'
-    outstr += "Registration mode: " + mode
+    outstr += f"Registration mode: {mode}"
     outstr += '\n'
-    outstr += "Number of fibers to analyze per subject: " + str(number_of_fibers)
+    outstr += f"Number of fibers to analyze per subject: {str(number_of_fibers)}"
     outstr += '\n'
-    outstr += "Minimum length of fibers to analyze (in mm): " + str(fiber_length)
+    outstr += f"Minimum length of fibers to analyze (in mm): {str(fiber_length)}"
     outstr += '\n'
-    outstr += "Maximum  length of fibers to analyze (in mm): " + str(fiber_length_max)
+    outstr += f"Maximum  length of fibers to analyze (in mm): {str(fiber_length_max)}"
     outstr += '\n'
-    outstr += "Number of jobs to use: " + str(parallel_jobs)
+    outstr += f"Number of jobs to use: {str(parallel_jobs)}"
     outstr += '\n'
-    outstr += "verbose: " + str(verbose)
+    outstr += f"verbose: {str(verbose)}"
     outstr += '\n'
-    outstr += "render: " + str(not no_render)
+    outstr += f"render: {str(not no_render)}"
     outstr += '\n'
-    outstr += "midsag_symmetric: " + str(midsag_symmetric)
+    outstr += f"midsag_symmetric: {str(midsag_symmetric)}"
     outstr += '\n'
-    outstr += "random seed: " + str(random_seed)
+    outstr += f"random seed: {str(random_seed)}"
     outstr += '\n'
     outstr += '\n'
     outstr += "Input Fiber Files\n"
@@ -439,19 +435,19 @@ def main():
     # -------------
     # Done SETTINGS. Below is computation
     # -------------
-    total_iterations = numpy.sum(numpy.array(iterations_per_scale))
+    total_iterations = np.sum(np.array(iterations_per_scale))
     iteration = 1
     # estimate percentage complete based on number of fibers compared,
     # because the times cobyla calls the objective function are approx
     # constant per scale (except first scale where they are cut short)
-    total_comparisons = numpy.multiply(iterations_per_scale,numpy.multiply(numpy.array(mean_brain_size_per_scale), numpy.array(subject_brain_size_per_scale)))
-    total_comparisons = numpy.sum(total_comparisons)
+    total_comparisons = np.multiply(iterations_per_scale,np.multiply(np.array(mean_brain_size_per_scale), np.array(subject_brain_size_per_scale)))
+    total_comparisons = np.sum(total_comparisons)
     comparisons_so_far = 0
     progress_filename = os.path.join(args.outputDirectory, 'progress.txt')
     progress_file = open(progress_filename, 'w')
     print("Beginning registration. Total iterations will be:", total_iterations, file=progress_file)
-    print("Start date: "  + time.strftime("%x"), file=progress_file)
-    print("Start time: " + time.strftime("%X") + '\n', file=progress_file)
+    print(f"Start date: {time.strftime('%x')}", file=progress_file)
+    print(f"Start time: {time.strftime('%X')}\n", file=progress_file)
     progress_file.close()
     prev_time = time.time()
     do_scales = list(range(len(sigma_per_scale)))
@@ -472,10 +468,10 @@ def main():
             comparisons_this_scale = mean_brain_size_per_scale[scale]*subject_brain_size_per_scale[scale]
             comparisons_so_far += comparisons_this_scale
             percent = 100*(float(comparisons_so_far)/total_comparisons)
-            print("Done iteration", iteration, "/", total_iterations, ". Percent finished approx:", "%.2f" % percent)
+            print(f"Done iteration {iteration} / {total_iterations}. Percent finished approx: {percent:.2f}")
             progress_file = open(progress_filename, 'a')
             curr_time = time.time()
-            print("Done iteration", iteration, "/", total_iterations, ". Percent finished approx:", "%.2f" % percent, ". Time:", time.strftime("%X"), ". Minutes Elapsed:", (curr_time - prev_time)/60, file=progress_file)
+            print(f"Done iteration {iteration} / {total_iterations}. Percent finished approx: {percent:.2f}. Time: {time.strftime('%X')}. Minutes Elapsed: {(curr_time - prev_time)/60}", file=progress_file)
             progress_file.close()
             prev_time = curr_time
     
@@ -487,12 +483,12 @@ def main():
     # Final save when we are done
     register.save_transformed_polydatas(midsag_symmetric=midsag_symmetric)
     
-    print("\nDone registering. For more information on the output, please read:", readme_fname, "\n")
+    print(f"\nDone registering. For more information on the output, please read: {readme_fname}\n")
     
     progress_file = open(progress_filename, 'a')
     print("\nFinished registration.", file=progress_file)
-    print("End date: "  + time.strftime("%x"), file=progress_file)
-    print("End time: " + time.strftime("%X"), file=progress_file)
+    print(f"End date: {time.strftime('%x')}", file=progress_file)
+    print(f"End time: {time.strftime('%X')}", file=progress_file)
     progress_file.close()
     
     

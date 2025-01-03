@@ -1,28 +1,23 @@
 #!/usr/bin/env python
-import os
-import glob
-import numpy
-import time
-import multiprocessing
-import argparse
+# -*- coding: utf-8 -*-
 
+import argparse
+import glob
+import multiprocessing
+import os
+import time
+
+import numpy as np
 import vtk
 
-try:
-    import whitematteranalysis as wma
-except:
-    print("<wm_register.py> Error importing white matter analysis package\n")
-    raise
+import whitematteranalysis as wma
 
-def main():
-    #-----------------
-    # Parse arguments
-    #-----------------
+
+def _build_arg_parser():
+
     parser = argparse.ArgumentParser(
         description="Registers a whole-brain vtk tractography file to another vtk tractography file (an atlas).",
         epilog="Written by Lauren O\'Donnell, odonnell@bwh.harvard.edu.  Please reference \"Unbiased Groupwise Registration of White Matter Tractography. LJ O'Donnell,  WM Wells III, Golby AJ, CF Westin. Med Image Comput Comput Assist Interv. 2012;15(Pt 3):123-30.\"")
-    
-    
     parser.add_argument(
         'inputSubject',
         help='One subject data: whole-brain tractography as vtkPolyData (.vtk or .vtp).')
@@ -36,9 +31,6 @@ def main():
         '-mode', action="store", dest="mode", type=str, default="affine",
         help='The mode can be affine or nonrigid. Affine is the default. It should be run first before nonrigid.')
     parser.add_argument(
-        '-f', action="store", dest="numberOfFibers", type=int, default=20000,
-        help='Total number of fibers to analyze from each dataset. During registration, at each iteration fibers are randomly sampled from within this data. 20000 is the default number of total fibers.')
-    parser.add_argument(
         '-l', action="store", dest="fiberLength", type=int, default=40,
         help='Minimum length (in mm) of fibers to analyze. The default is 40mm.')
     parser.add_argument(
@@ -50,25 +42,36 @@ def main():
     #parser.add_argument(
     #    '-pf', action="store", dest="pointsPerFiber", type=int, default=15,
     #    help='Number of points for fiber representation during registration. The default of 15 is reasonable.')
-     
-    args = parser.parse_args()
-    
+
+    return parser
+
+
+def _parse_args(parser):
+
+    return parser.parse_args()
+
+
+def main():
+
+    parser = _build_arg_parser()
+    args = _parse_args(parser)
+
     print("\n\n<register> =========GROUP REGISTRATION============")
-    print("<register> Registering to atlas.")
-    print("<register> Input  subject file: ", args.inputSubject)
-    print("<register> Input  atlas file: ", args.inputAtlas)
-    print("<register> Output directory: ", args.outputDirectory)
+    print(f"<{os.path.basename(__file__)}> Registering to atlas.")
+    print(f"<{os.path.basename(__file__)}> Input  subject file: ", args.inputSubject)
+    print(f"<{os.path.basename(__file__)}> Input  atlas file: ", args.inputAtlas)
+    print(f"<{os.path.basename(__file__)}> Output directory: ", args.outputDirectory)
     print("\n<register> ============PARAMETERS=================")
     
     mode = args.mode
-    print("<register> Registration mode:", mode)
+    print(f"<{os.path.basename(__file__)}> Registration mode:", mode)
     
     if not os.path.isfile(args.inputSubject):
-        print("<register> Error: Input subject data", args.inputSubject, "does not exist.")
+        print(f"<{os.path.basename(__file__)}> Error: Input subject data", args.inputSubject, "does not exist.")
         exit()
     
     if not os.path.isfile(args.inputAtlas):
-        print("<register> Error: Input atlas", args.inputAtlas, "does not exist.")
+        print(f"<{os.path.basename(__file__)}> Error: Input atlas", args.inputAtlas, "does not exist.")
         exit()
     
     fname = args.inputSubject
@@ -80,26 +83,23 @@ def main():
     
     outdir = args.outputDirectory
     if not os.path.exists(outdir):
-        print("<register> Output directory", outdir, "does not exist, creating it.")
+        print(f"<{os.path.basename(__file__)}> Output directory {outdir} does not exist, creating it.")
         os.makedirs(outdir)
     subject_outdir = os.path.join(outdir, subject_id)
     if not os.path.exists(subject_outdir):
-        print("<register> Output directory", outdir, "does not exist, creating it.")
+        print(f"<{os.path.basename(__file__)}> Output directory {outdir} does not exist, creating it.")
         os.makedirs(subject_outdir)
     
-    number_of_fibers = args.numberOfFibers
-    print("<register> Number of fibers to analyze per subject: ", number_of_fibers)
-    
     fiber_length = args.fiberLength
-    print("<register> Minimum length of fibers to analyze (in mm): ", fiber_length)
+    print(f"<{os.path.basename(__file__)}> Minimum length of fibers to analyze (in mm): ", fiber_length)
     
     fiber_length_max = args.fiberLengthMax
-    print("<register> Maximum  length of fibers to analyze (in mm): ", fiber_length_max)
+    print(f"<{os.path.basename(__file__)}> Maximum  length of fibers to analyze (in mm): ", fiber_length_max)
     
     if args.flag_verbose:
-        print("<register> Verbose display and intermediate image saving ON.")
+        print(f"<{os.path.basename(__file__)}> Verbose display and intermediate image saving ON.")
     else:
-        print("<register> Verbose display and intermediate image saving OFF.")
+        print(f"<{os.path.basename(__file__)}> Verbose display and intermediate image saving OFF.")
     verbose = args.flag_verbose
     
     print("\n<register> Starting registration...\n")
@@ -203,7 +203,7 @@ def main():
         initial_step_per_scale = [5, 4, 3, 2, 1.5]
         final_step_per_scale = [3, 3, 2, 1, 1]
         # use only very local information (small sigma)
-        # sigma 1.25 is apparently not useful: stick with a minumum of 2mm
+        # sigma 1.25 is apparently not useful: stick with a minimum of 2mm
         sigma_per_scale = [5, 3, 2, 2, 2]
         # how many times to repeat the process at each scale
         iterations_per_scale = [10, 10, 8, 5, 2]
@@ -237,7 +237,7 @@ def main():
         initial_step_per_scale = [5, 4, 3, 2, 1.5, 1.5, 1.5]
         final_step_per_scale = [3, 3, 2, 1, 1, 1, 1]
         # use only very local information (small sigma)
-        # sigma 1.25 is apparently not useful: stick with a minumum of 2mm
+        # sigma 1.25 is apparently not useful: stick with a minimum of 2mm
         sigma_per_scale = [5, 3, 2, 2, 2, 2, 2]
         # how many times to repeat the process at each scale
         iterations_per_scale = [10, 10, 8, 5, 4, 3, 2]
@@ -287,7 +287,7 @@ def main():
         nonrigid = True
     
     else:
-        print("\n<register> Error: Unknown registration mode:", mode)
+        print(f"\n<register> Error: Unknown registration mode: {mode}")
         exit()
     
     
@@ -295,6 +295,9 @@ def main():
     register = wma.congeal_to_atlas.SubjectToAtlasRegistration()
     register.output_directory = subject_outdir
     register.input_polydata_filename = args.inputSubject
+    register.fiber_length = args.fiberLength
+    register.fiber_length_max = args.fiberLengthMax
+
     if nonrigid:
         register.mode = "Nonrigid"
     # We have to add polydatas after setting nonrigid in the register object
@@ -306,20 +309,20 @@ def main():
     # -------------
     # Done SETTINGS. Below is computation
     # -------------
-    total_iterations = numpy.sum(numpy.array(iterations_per_scale))
+    total_iterations = np.sum(np.array(iterations_per_scale))
     iteration = 1
     # estimate percentage complete based on number of fibers compared,
     # because the times cobyla calls the objective function are approx
     # constant per scale (except first scale where they are cut short)
-    total_comparisons = numpy.multiply(iterations_per_scale,numpy.multiply(numpy.array(mean_brain_size_per_scale), numpy.array(subject_brain_size_per_scale)))
-    total_comparisons = numpy.sum(total_comparisons)
+    total_comparisons = np.multiply(iterations_per_scale,np.multiply(np.array(mean_brain_size_per_scale), np.array(subject_brain_size_per_scale)))
+    total_comparisons = np.sum(total_comparisons)
     comparisons_so_far = 0
     
     progress_filename = os.path.join(subject_outdir, 'progress.txt')
     progress_file = open(progress_filename, 'w')
-    print("Beginning registration. Total iterations will be:", total_iterations, file=progress_file)
-    print("Start date: "  + time.strftime("%x"), file=progress_file)
-    print("Start time: " + time.strftime("%X") + '\n', file=progress_file)
+    print(f"Beginning registration. Total iterations will be: {total_iterations}", file=progress_file)
+    print(f"Start date: {time.strftime('%x')}", file=progress_file)
+    print(f"Start time: {time.strftime('%X')}\n", file=progress_file)
     progress_file.close()
     prev_time = time.time()
     
@@ -346,10 +349,10 @@ def main():
             comparisons_this_scale = mean_brain_size_per_scale[scale]*subject_brain_size_per_scale[scale]
             comparisons_so_far += comparisons_this_scale
             percent = 100*(float(comparisons_so_far)/total_comparisons)
-            print("Done iteration", iteration, "/", total_iterations, ". Percent finished approx:", "%.2f" % percent)
+            print(f"Done iteration {iteration} / {total_iterations}. Percent finished approx: {percent:.2f}")
             progress_file = open(progress_filename, 'a')
             curr_time = time.time()
-            print("Done iteration", iteration, "/", total_iterations, ". Percent finished approx:", "%.2f" % percent, ". Time:", time.strftime("%X"), ". Minutes Elapsed:", (curr_time - prev_time)/60, file=progress_file)
+            print(f"Done iteration {iteration} / {total_iterations}. Percent finished approx: {percent:.2f}. Time: {time.strftime('%X')}. Minutes Elapsed: {(curr_time - prev_time) / 60}", file=progress_file)
             progress_file.close()
             prev_time = curr_time
             iteration += 1
@@ -360,12 +363,12 @@ def main():
     # Final save when we are done
     register.save_transformed_polydata()
     
-    print("Done registering. See output in:", subject_outdir)
+    print(f"Done registering. See output in: {subject_outdir}")
     
     progress_file = open(progress_filename, 'a')
     print("\nFinished registration.", file=progress_file)
-    print("End date: "  + time.strftime("%x"), file=progress_file)
-    print("End time: " + time.strftime("%X"), file=progress_file)
+    print(f"End date: {time.strftime('%x')}", file=progress_file)
+    print(f"End time: {time.strftime('%X')}", file=progress_file)
     progress_file.close()
 
 if __name__ == '__main__':

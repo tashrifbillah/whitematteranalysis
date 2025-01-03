@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 """ register.py
 
 implementation of fiber tractography registration (group)
@@ -7,27 +9,16 @@ class RegisterTractographyNonrigid
 
 """
 
-try:
-    import scipy.optimize
-    USE_SCIPY = 1
-except ImportError:
-    USE_SCIPY = 0
-    print("<congeal.py> Failed to import  scipy.optimize, cannot align or register.")
-    print("<congeal.py> Please install  scipy.optimize for this functionality.")
-
-import numpy
+import os
 import sys
 import time
+
+import numpy as np
+import scipy.optimize
 import vtk
-try:
-    from joblib import Parallel, delayed
-    USE_PARALLEL = 1
-except ImportError:
-    USE_PARALLEL = 0
-    print("<congeal.py> Failed to import joblib, cannot multiprocess.")
-    print("<congeal.py> Please install joblib for this functionality.")
 
 import whitematteranalysis as wma
+
 
 class RegisterTractographyNonrigidThinPlateSplines(wma.register_two_subjects.RegisterTractography):
 
@@ -79,10 +70,10 @@ class RegisterTractographyNonrigidThinPlateSplines(wma.register_two_subjects.Reg
         self.nonrigid_grid_10 = [-120, -91, -65, -39, -13, 13, 39, 65, 91, 120]
         # random order so that optimizer does not start in one corner every time
         # the order was computed as
-        # numpy.random.permutation(range(0,27))
-        # numpy.random.permutation(range(0,64))
-        # numpy.random.permutation(range(0,125))
-        # numpy.random.permutation(range(0,216))
+        # np.random.permutation(range(0,27))
+        # np.random.permutation(range(0,64))
+        # np.random.permutation(range(0,125))
+        # np.random.permutation(range(0,216))
         self.grid_order_3 = [22,  8,  0, 14,  5, 19, 20,  9, 17, 15,  2, 11,  1, 12, 21,  6, 25, 7,  3, 24, 13, 18, 26, 16, 23,  4, 10]
         self.grid_order_4 = [58, 54,  4, 62, 51, 41, 52, 45, 59,  8, 29, 17, 61, 46, 18, 22, 34, 42, 21,  0,  3, 39, 27, 13, 60, 12,  2, 15,  5, 28,  7, 43, 31, 38, 33, 55,  1, 37, 47, 30, 24, 35, 14, 50, 20, 36, 44, 53, 16, 57, 56, 10, 48, 26,  6, 25,  9, 32, 19, 11, 63, 23, 49, 40]
         self.grid_order_5 = [ 75,  18,  54,  61,  64,  73,  95,  13, 111, 118,  43,   7,  46, 56,   4, 124,  77,  98,  72,  60,  38,  80,  36,  27, 120, 119, 51,  81,   0,  93,  11,  41,  69,  83, 107,  12, 106,  30,  53, 105,  33,  91,  28,  17,  58,  90,  45,  94,  14,  26,  84,   1, 92,  21,  47,  59, 100,   2,   3,  87,  65, 102,  68,  20,  85, 79,  82,  15,  32,  88, 115,  74,   6,  19,  35,  99, 104, 109, 70, 101,  96,  66,  52,  48,  49,  31,  97, 122,  78, 113,  55, 112,  76,  44,  23, 103,  16,  10, 123,  86,  39,   8,  62, 110, 42, 114,  40, 117,  63,   9,  25,  67,  71,  37,  24, 116,  57, 89, 121,  34,   5,  29, 108,  50,  22]
@@ -94,13 +85,13 @@ class RegisterTractographyNonrigidThinPlateSplines(wma.register_two_subjects.Reg
         self.initialize_nonrigid_grid()
 
         # transform we optimize over is the source landmarks (initialize to identity, equal to target landmarks)
-        self.initial_transform = numpy.array(self.target_landmarks)
+        self.initial_transform = np.array(self.target_landmarks)
 
         # internal recordkeeping
         self.iterations = 0
 
         # keep track of the best objective we have seen so far to return that when computation stops.
-        self.minimum_objective = numpy.inf
+        self.minimum_objective = np.inf
 
         # choice of optimization method
         #self.optimizer = "Powell"
@@ -129,7 +120,7 @@ class RegisterTractographyNonrigidThinPlateSplines(wma.register_two_subjects.Reg
             grid = self.nonrigid_grid_10
             grid_order = self.grid_order_10
         else:
-            print("<congeal_multisubject.py> Error: Unknown nonrigid grid mode:", self.nonrigid_grid_resolution)
+            print(f"<{os.path.basename(__file__)}> Error: Unknown nonrigid grid mode: {self.nonrigid_grid_resolution}")
         tmp = list()
         for r in grid:
             for a in grid:
@@ -163,7 +154,7 @@ class RegisterTractographyNonrigidThinPlateSplines(wma.register_two_subjects.Reg
         self.objective_function_values.append(obj)
 
         if self.verbose:
-            print("O:",  obj, "X:", current_x)
+            print(f"O: {obj} X: {current_x}")
         #print "X:", self._x_opt
         return obj
 
@@ -171,7 +162,7 @@ class RegisterTractographyNonrigidThinPlateSplines(wma.register_two_subjects.Reg
         """Transform in_array of R,A,S by transform (a list of source points).  Transformed fibers are returned.
         """
         (dims, number_of_fibers, points_per_fiber) = in_array.shape
-        out_array = numpy.zeros(in_array.shape)
+        out_array = np.zeros(in_array.shape)
 
         vtktrans = convert_transform_to_vtk(source_landmarks, self.target_points)
         #print "2:", vtktrans
@@ -193,7 +184,7 @@ class RegisterTractographyNonrigidThinPlateSplines(wma.register_two_subjects.Reg
         ## uncomment for testing only
         ## # convert it back to a fiber object and render it
         ## global __render_count
-        ## if (numpy.mod(__render_count, 500) == 0) & False:
+        ## if (np.mod(__render_count, 500) == 0) & False:
         ##     fiber_array = wma.fibers.FiberArray()
         ##     fiber_array.fiber_array_r = out_array[0,:,:]
         ##     fiber_array.fiber_array_a = out_array[1,:,:]
@@ -248,14 +239,14 @@ class RegisterTractographyNonrigidThinPlateSplines(wma.register_two_subjects.Reg
             ren = wma.render.render(pd2, number_of_fibers_fixed, verbose=False)
             # save low-res images for speed
             ren.magnification = 3
-            ren.save_views(self.output_directory, 'fixed_brain_' + self.process_id_string)
+            ren.save_views(self.output_directory, f'fixed_brain_{self.process_id_string}')
             del ren
                 
         self.iterations += 1
-        self.final_transform = numpy.zeros(self.initial_transform.shape)
+        self.final_transform = np.zeros(self.initial_transform.shape)
 
         if self.verbose:
-            print("<congeal.py> Initial value for X:", self.initial_transform)
+            print(f"<{os.path.basename(__file__)}> Initial value for X: {self.initial_transform}")
 
         if self.optimizer == "Cobyla":
 
@@ -312,10 +303,11 @@ class RegisterTractographyNonrigidThinPlateSplines(wma.register_two_subjects.Reg
                                                                             maxiter=self.maxfun,
                                                                             disp=1, full_output=True)
 
-            print("TRANS:", self.final_transform, "FLAG:", warnflag)
+            print(f"TRANS: {self.final_transform} FLAG: {warnflag}")
 
         else:
-            print("Unknown optimizer.")
+            raise NotImplementedError(
+                f"Workflow not implemented for optimizer: {self.optimizer}.")
 
         if self.verbose:
             print("O:", self.objective_function_values)

@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 """ congeal_multisubject.py
 
 re-implementation of fiber tractography registration (group)
@@ -8,16 +10,19 @@ class MultiSubjectRegistration
 """
 
 import os
-import numpy
+
+import numpy as np
 import vtk
+
 import whitematteranalysis as wma
+
 
 class SubjectToAtlasRegistration:
 
     def __init__(self):
         # parameters that can be set by user
         self.output_directory = "."
-        self.random_seed = None
+        self.random_seed = 1000
         self.input_polydata_filename = None
         
         # performance options set by user
@@ -35,6 +40,9 @@ class SubjectToAtlasRegistration:
         self.subject_brain_size = 1000
         # options are Affine, Rigid, Nonrigid
         self.mode = "Affine"
+
+        self.fiber_length = 40
+        self.fiber_length_max = 260
 
         # internal stuff
         self.subject_polydata = None
@@ -73,7 +81,7 @@ class SubjectToAtlasRegistration:
         #print displacement_field_vtk.GetPointData().GetArray(0)
         newtrans = vtk.util.numpy_support.vtk_to_numpy(displacement_field_vtk.GetPointData().GetArray(0)).ravel()
         #print newtrans.shape
-        print("UPDATE NONRIGID GRID: ", self.nonrigid_grid_resolution, len(self.transform_as_array), "==>", len(newtrans), end=' ')        
+        print(f"UPDATE NONRIGID GRID: {self.nonrigid_grid_resolution} {len(self.transform_as_array)} ==> {len(newtrans)}", end=' ')
         self.transform_as_array = newtrans
         
     def set_subject(self, polydata, subject_id):
@@ -81,15 +89,15 @@ class SubjectToAtlasRegistration:
         if self.mode == "Nonrigid":
             # This sets up identity transform to initialize.
             res = self.nonrigid_grid_resolution
-            trans = numpy.zeros(res*res*res*3)
+            trans = np.zeros(res*res*res*3)
             vtktrans = wma.register_two_subjects_nonrigid_bsplines.convert_transform_to_vtk(trans)
             self.transform = vtktrans
             self.transform_as_array = trans
-            print("ADD PD:", trans)
+            print(f"ADD PD: {trans}")
         else:
             trans = vtk.vtkTransform()
             self.transform = trans
-            self.transform_as_array =  numpy.array([0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0]).astype(float)
+            self.transform_as_array =  np.array([0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0]).astype(float)
         self.subject_id = subject_id
 
     def set_atlas(self, polydata, atlas_id):
@@ -100,25 +108,31 @@ class SubjectToAtlasRegistration:
         self.total_iterations += 1
 
         # make a directory for the current iteration
-        dirname = "iteration_%05d_sigma_%05d" % (self.total_iterations, self.sigma)
+        dirname = f"iteration_{self.total_iterations:05d}_sigma_{int(self.sigma):05d}"
         outdir = os.path.join(self.output_directory, dirname)
         if not os.path.exists(outdir):
             os.makedirs(outdir)
 
-        mean_brain = wma.filter.downsample(self.atlas_polydata, self.mean_brain_size, verbose=False, random_seed=self.random_seed)
+        print("filtering and downsampling atlas")
+        mean_brain = wma.filter.preprocess(self.atlas_polydata, self.fiber_length, max_length_mm=self.fiber_length_max, return_indices=False, preserve_point_data=False, preserve_cell_data=False, verbose=False)
+        mean_brain, tmp = wma.filter.downsample(mean_brain, self.mean_brain_size, return_indices=True, verbose=False, random_seed=self.random_seed+self.total_iterations) 
+
         mean_fibers = wma.fibers.FiberArray()
         mean_fibers.convert_from_polydata(mean_brain, self.points_per_fiber)
-        fixed = numpy.array([mean_fibers.fiber_array_r,mean_fibers.fiber_array_a,mean_fibers.fiber_array_s])
+        fixed = np.array([mean_fibers.fiber_array_r,mean_fibers.fiber_array_a,mean_fibers.fiber_array_s])
         
-        subject_brain = wma.filter.downsample(self.subject_polydata, self.subject_brain_size, verbose=False, random_seed=self.random_seed)
+        print("filtering and downsampling subject")
+        subject_brain = wma.filter.preprocess(self.subject_polydata, self.fiber_length, max_length_mm=self.fiber_length_max, return_indices=False, preserve_point_data=False, preserve_cell_data=False, verbose=False)
+        subject_brain, tmp = wma.filter.downsample(subject_brain, self.subject_brain_size, return_indices=True, verbose=False, random_seed=self.random_seed+self.total_iterations)
+
         fibers = wma.fibers.FiberArray()
         fibers.convert_from_polydata(subject_brain, self.points_per_fiber)
-        moving = numpy.array([fibers.fiber_array_r,fibers.fiber_array_a,fibers.fiber_array_s])
+        moving = np.array([fibers.fiber_array_r,fibers.fiber_array_a,fibers.fiber_array_s])
 
         subject_idx = 1
         iteration_count = self.total_iterations
         output_directory = self.output_directory
-        step_size = numpy.array([self.initial_step, self.final_step])
+        step_size = np.array([self.initial_step, self.final_step])
         render = False
         
         (self.transform_as_array, objectives, diff) = wma.congeal_multisubject.congeal_multisubject_inner_loop(fixed, moving, self.transform_as_array, self.mode, self.sigma, subject_idx, iteration_count, self.output_directory, step_size, self.maxfun, render, self.nonrigid_grid_resolution)
@@ -149,7 +163,7 @@ class SubjectToAtlasRegistration:
 
         if intermediate_save:
             # make a directory for the current iteration
-            dirname = "iteration_%05d_sigma_%05d" % (self.total_iterations, self.sigma)
+            dirname = f"iteration_{self.total_iterations:05d}_sigma_{int(self.sigma):05d}"
             outdir = os.path.join(self.output_directory, dirname)
             if not os.path.exists(outdir):
                 os.makedirs(outdir)
@@ -182,8 +196,8 @@ class SubjectToAtlasRegistration:
             wma.io.write_transforms_to_itk_format(tx_list, outdir, id_list)
  
     def save_transformed_polydata_to_disk(self, outdir):
-        out_fname = os.path.join(outdir, self.subject_id + '_reg.vtk')
-        print(self.subject_id, " Transforming ", self.input_polydata_filename, "->", out_fname, "...")
+        out_fname = os.path.join(outdir, f'{self.subject_id}_reg.vtk')
+        print(f"{self.subject_id} Transforming {self.input_polydata_filename} -> {out_fname}...")
 
         pd = wma.io.read_polydata(self.input_polydata_filename)
 

@@ -1,11 +1,14 @@
+# -*- coding: utf-8 -*-
+
 """ Class RenderPolyData for rendering tractography, and saving views. """
 
 import os
 
-import numpy
+import numpy as np
 import vtk
 
 from . import filter
+
 
 def render(input_polydata, number_of_fibers=None, opacity=1, depth_peeling=False, scalar_bar=False, axes=False, scalar_range=None, data_mode="Cell", tube=True, colormap='jet', data_name=None, verbose=True):
     """ Function for easy matlab-like use of the rendering
@@ -16,17 +19,17 @@ def render(input_polydata, number_of_fibers=None, opacity=1, depth_peeling=False
     functionality."""
 
     if verbose:
-        print("<render.py> Initiating rendering.")
+        print(f"<{os.path.basename(__file__)}> Initiating rendering.")
         
     if number_of_fibers is not None:
         if verbose:
-            print("<render.py> Downsampling vtkPolyData:", number_of_fibers)
+            print(f"<{os.path.basename(__file__)}> Downsampling vtkPolyData: {number_of_fibers}")
         # downsample if requested
         input_polydata = filter.downsample(input_polydata, number_of_fibers, preserve_point_data=True, preserve_cell_data=True, verbose=verbose)
 
     if data_name is not None:
         if verbose:
-            print("<render.py> Visualizing data:", data_name)
+            print(f"<{os.path.basename(__file__)}> Visualizing data: {data_name}")
         if data_mode == "Cell":
             input_polydata.GetCellData().SetActiveScalars(data_name)
         if data_mode == "Point":
@@ -37,7 +40,7 @@ def render(input_polydata, number_of_fibers=None, opacity=1, depth_peeling=False
     ren.render_polydata(input_polydata, opacity=opacity, depth_peeling=depth_peeling, scalar_bar=scalar_bar, axes=axes, scalar_range=scalar_range, data_mode=data_mode, tube=tube, colormap=colormap, verbose=verbose)
 
     if verbose:
-        print("<render.py> Render pipeline created.")
+        print(f"<{os.path.basename(__file__)}> Render pipeline created.")
     return ren
 
 def save_views(render_object, directory=".", subjectID=None):
@@ -90,7 +93,7 @@ def argsort_by_jet_lookup_table(rgb_color):
     jet_b = jet_b + [0.6, 0.8, 0.6, 0.8, 0.4, 0.2]
 
     # map from 0..255 to 0..1
-    rgb_color = numpy.divide(rgb_color, 255)
+    rgb_color = np.divide(rgb_color, 255)
     
     # sort input rgb into this colormap order
     match_jet = list()
@@ -100,15 +103,15 @@ def argsort_by_jet_lookup_table(rgb_color):
         diff_g = rgb_color[col_idx,1]-jet_g
         diff_b = rgb_color[col_idx,2]-jet_b
 
-        mag = numpy.sqrt(numpy.multiply(diff_r,diff_r) + numpy.multiply(diff_g,diff_g) + numpy.multiply(diff_b,diff_b) )
-        match_jet.append(numpy.argmin(mag))
-        match_dist.append(numpy.min(mag))
+        mag = np.sqrt(np.multiply(diff_r,diff_r) + np.multiply(diff_g,diff_g) + np.multiply(diff_b,diff_b) )
+        match_jet.append(np.argmin(mag))
+        match_dist.append(np.min(mag))
         # uncomment for testing of worst color matches
-        #if numpy.min(mag) > 0.3:
-        #    print numpy.min(mag), "Color matched:", rgb_color[col_idx,:], "Idx:", match_jet[col_idx], ":", jet_r[match_jet[col_idx]], jet_g[match_jet[col_idx]], jet_b[match_jet[col_idx]], "\n"
+        #if np.min(mag) > 0.3:
+        #    print np.min(mag), "Color matched:", rgb_color[col_idx,:], "Idx:", match_jet[col_idx], ":", jet_r[match_jet[col_idx]], jet_g[match_jet[col_idx]], jet_b[match_jet[col_idx]], "\n"
     
     # Return indices that will sort these colors (centroids) in their match order
-    return(numpy.argsort(numpy.array(match_jet)))
+    return(np.argsort(np.array(match_jet)))
         
 class RenderPolyData:
 
@@ -159,13 +162,13 @@ class RenderPolyData:
     def __del__(self):
         try:
             if self.verbose:
-                print("<render.py> in DELETE")
+                print(f"<{os.path.basename(__file__)}> in DELETE")
             #del self.renderer
             #del self.render_window
             #del self.iren
             #del self.scalarbar
         except Exception:
-            print("<render.py> ERROR: deletion failed")
+            print(f"<{os.path.basename(__file__)}> ERROR: deletion failed")
 
     def scalar_bar_on(self):
         self.renderer.AddActor2D(self.scalarbar)
@@ -183,7 +186,7 @@ class RenderPolyData:
         #self.build_vtk()
 
         if verbose:
-            print("<render.py> Rendering vtkPolyData.")
+            print(f"<{os.path.basename(__file__)}> Rendering vtkPolyData.")
         
         # actor and mapper
         mapper = vtk.vtkPolyDataMapper()
@@ -210,7 +213,7 @@ class RenderPolyData:
                 self.render_RGB = True
                 self.renderer.RemoveActor2D(self.scalarbar)
         if verbose:
-            print("<render.py> RGB: ", self.render_RGB)
+            print(f"<{os.path.basename(__file__)}> RGB: f{self.render_RGB}")
 
         if data_mode == "Cell":
             mapper.SetScalarModeToUseCellData()
@@ -255,7 +258,7 @@ class RenderPolyData:
         else:
             lut.SetRange(scalar_range)
 
-        if opacity is not 1:
+        if opacity != 1:
             actor.GetProperty().SetOpacity(opacity)
 
         if depth_peeling is not False:
@@ -301,7 +304,7 @@ class RenderPolyData:
         try:
             self.render_window.Render()
         except Exception:
-            print("<render.py> ERROR. Failed to render. Check display settings.")
+            print(f"<{os.path.basename(__file__)}> ERROR. Failed to render. Check display settings.")
             # do not re-raise the exception because we may be in the
             # middle of running this pipeline via ssh, and this is not
             # a fatal error for the computation
@@ -377,10 +380,10 @@ class RenderPolyData:
     def save_views(self, directory=".", subjectID=None,  verbose=True):
 
         if verbose:
-            print("<render.py> Saving rendered views to disk:", directory)
+            print(f"<{os.path.basename(__file__)}> Saving rendered views to disk: {directory}")
         
         if not os.path.isdir(directory):
-            print("<render.py> ERROR: directory does not exist.", directory)
+            print(f"<{os.path.basename(__file__)}> ERROR: directory does not exist. {directory}")
             return
 
         #ext = ".png"
@@ -389,19 +392,19 @@ class RenderPolyData:
         # Use subject ID as part of filename for easier visual 
         # identification of problem cases
         if subjectID is not None:
-            fname_sup = "view_sup_"+subjectID+ext
-            fname_inf = "view_inf_"+subjectID+ext
-            fname_left = "view_left_"+subjectID+ext
-            fname_right = "view_right_"+subjectID+ext
-            fname_ant = "view_ant_"+subjectID+ext
-            fname_post = "view_post_"+subjectID+ext
+            fname_sup = f"view_sup_{subjectID}{ext}"
+            fname_inf = f"view_inf_{subjectID}{ext}"
+            fname_left = f"view_left_{subjectID}{ext}"
+            fname_right = f"view_right_{subjectID}{ext}"
+            fname_ant = f"view_ant_{subjectID}{ext}"
+            fname_post = f"view_post_{subjectID}{ext}"
         else:
-            fname_sup = "view_sup"+ext
-            fname_inf = "view_inf"+ext
-            fname_left = "view_left"+ext
-            fname_right = "view_right"+ext
-            fname_ant = "view_ant"+ext
-            fname_post = "view_post"+ext
+            fname_sup = f"view_sup{ext}"
+            fname_inf = f"view_inf{ext}"
+            fname_left = f"view_left{ext}"
+            fname_right = f"view_right{ext}"
+            fname_ant = f"view_ant{ext}"
+            fname_post = f"view_post{ext}"
             
         # sometimes the model gets clipped, this mostly fixes it
         self.renderer.ResetCameraClippingRange()
@@ -446,11 +449,11 @@ class RenderPolyData:
 def histeq(values,nbr_bins=256):
 
    #get image histogram
-   imhist,bins = numpy.histogram(values,nbr_bins,normed=True)
+   imhist,bins = np.histogram(values,nbr_bins,normed=True)
    cdf = imhist.cumsum() #cumulative distribution function
    cdf = 255 * cdf / cdf[-1] #normalize
 
    #use linear interpolation of cdf to find new pixel values
-   new_values = numpy.interp(values,bins[:-1],cdf)
+   new_values = np.interp(values,bins[:-1],cdf)
 
    return new_values, cdf

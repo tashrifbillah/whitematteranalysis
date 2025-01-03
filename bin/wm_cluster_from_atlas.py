@@ -1,29 +1,22 @@
 #!/usr/bin/env python
-import numpy
+# -*- coding: utf-8 -*-
+
 import argparse
-import os
 import multiprocessing
+import os
 import time
 
+import numpy as np
 import vtk
 
-try:
-    import whitematteranalysis as wma
-except:
-    print("<wm_cluster_from_atlas.py> Error importing white matter analysis package\n")
-    raise
+import whitematteranalysis as wma
 
-def main():
-    #-----------------
-    # Parse arguments
-    #-----------------
+
+def _build_arg_parser():
+
     parser = argparse.ArgumentParser(
         description="Clusters tractography (propagates clusters) from a cluster atlas (a multi-subject/multi-atlas cluster representation).",
         epilog="Written by Lauren O\'Donnell, odonnell@bwh.harvard.edu.  Please reference \"O'Donnell, Lauren J., and C-F. Westin. Automatic tractography segmentation using a high-dimensional white matter atlas. Medical Imaging, IEEE Transactions on 26.11 (2007): 1562-1575.\"")
-    parser.add_argument("-v", "--version",
-        action="version", default=argparse.SUPPRESS,
-        version='1.0',
-        help="Show program's version number and exit")
     parser.add_argument(
         'inputFile',
         help='A file of whole-brain tractography as vtkPolyData (.vtk or .vtp).')
@@ -40,7 +33,7 @@ def main():
         '-l', action="store", dest="fiberLength", type=int, default=40,
         help='Minimum length (in mm) of fibers to analyze. 60mm is default.')
     parser.add_argument(
-        '-j', action="store", dest="numberOfJobs", type=int, default=1,
+        '-j', action="store", dest="numberOfJobs", type=str, default='1',
         help='Number of processors to use.')
     parser.add_argument(
         '-verbose', action='store_true', dest="flag_verbose",
@@ -54,33 +47,43 @@ def main():
     parser.add_argument(
         '-norender', action='store_true', dest="flag_norender",
         help='No Render. Prevents rendering of images that would require an X connection.')
-    
-    args = parser.parse_args()
-    
-    
+
+    return parser
+
+
+def _parse_args(parser):
+
+    return parser.parse_args()
+
+
+def main():
+
+    parser = _build_arg_parser()
+    args = _parse_args(parser)
+
     if not os.path.exists(args.inputFile):
-        print("<wm_cluster_from_atlas.py> Error: Input file", args.inputFile, "does not exist.")
+        print(f"<{os.path.basename(__file__)}> Error: Input file", args.inputFile, "does not exist.")
         exit()
     
     if not os.path.isdir(args.atlasDirectory):
-        print("<wm_cluster_from_atlas.py> Error: Atlas directory", args.atlasDirectory, "does not exist.")
+        print(f"<{os.path.basename(__file__)}> Error: Atlas directory {args.atlasDirectory} does not exist.")
         exit()
     
     outdir = args.outputDirectory
     if not os.path.exists(outdir):
-        print("<wm_cluster_from_atlas.py> Output directory", outdir, "does not exist, creating it.")
+        print(f"<{os.path.basename(__file__)}> Output directory {outdir} does not exist, creating it.")
         os.makedirs(outdir)
     
     fname = args.inputFile
     subject_id = os.path.splitext(os.path.basename(fname))[0]
     outdir = os.path.join(outdir, subject_id)
     if not os.path.exists(outdir):
-        print("<wm_cluster_from_atlas.py> Output directory", outdir, "does not exist, creating it.")
+        print(f"<{os.path.basename(__file__)}> Output directory {outdir} does not exist, creating it.")
         os.makedirs(outdir)
     
     print("\n==========================")
     print("input file:", args.inputFile)
-    print("atlas directory:", args.atlasDirectory)
+    print(f"atlas directory {args.atlasDirectory}")
     print("output directory:", args.outputDirectory)
     
     if args.numberOfFibers is not None:
@@ -92,8 +95,8 @@ def main():
     fiber_length = args.fiberLength
     print("minimum length of fibers to analyze (in mm): ", fiber_length)
     
-    number_of_jobs = args.numberOfJobs
-    print('Using N jobs:', number_of_jobs)
+    number_of_jobs = int(args.numberOfJobs)
+    print(f'Using N jobs: {number_of_jobs}')
     
     if args.flag_verbose:
         print("Verbose ON.")
@@ -121,26 +124,22 @@ def main():
     render = not args.flag_norender
     
     print("==========================\n")
-      
-    # =======================================================================
-    # Above this line is argument parsing. Below this line is the pipeline.
-    # =======================================================================
     
     # read atlas
-    print("<wm_cluster_from_atlas.py> Loading input atlas:", args.atlasDirectory)
+    print(f"<{os.path.basename(__file__)}> Loading input atlas: {args.atlasDirectory}")
     atlas = wma.cluster.load_atlas(args.atlasDirectory, 'atlas')
     
     # read data
-    print("<wm_cluster_from_atlas.py> Reading input file:", args.inputFile)
+    print(f"<{os.path.basename(__file__)}> Reading input file:", args.inputFile)
     pd = wma.io.read_polydata(args.inputFile)
         
     # preprocessing step: minimum length
-    print("<wm_cluster_from_atlas.py> Preprocessing by length:", fiber_length, "mm.")
+    print(f"<{os.path.basename(__file__)}> Preprocessing by length:", fiber_length, "mm.")
     pd2 = wma.filter.preprocess(pd, fiber_length, return_indices=False, preserve_point_data=True, preserve_cell_data=True,verbose=False)
     
     # preprocessing step: fibers to analyze
     if number_of_fibers is not None:
-        print("<wm_cluster_from_atlas.py> Downsampling to ", number_of_fibers, "fibers.")
+        print(f"<{os.path.basename(__file__)}> Downsampling to ", number_of_fibers, "fibers.")
         input_data = wma.filter.downsample(pd2, number_of_fibers, return_indices=False, preserve_point_data=True, preserve_cell_data=True,verbose=False)
     else:
         input_data = pd2
@@ -180,7 +179,7 @@ def main():
         points_per_fiber = 5
         distance_method='Hausdorff'
         # figure out numbers of fibers to sample
-        fiber_sample_sizes = (number_of_fibers * numpy.array(fiber_sample_fractions)).astype(int)
+        fiber_sample_sizes = (number_of_fibers * np.array(fiber_sample_fractions)).astype(int)
         # create registration object and apply settings
         register = wma.congeal.CongealTractography()
         register.parallel_jobs = number_of_jobs
@@ -234,24 +233,24 @@ def main():
     fnames = list()
     cluster_colors = list()
     # These lines counted clusters present in the subject only
-    ##number_of_clusters = numpy.max(cluster_numbers_s)
-    ##first_cluster = numpy.min(cluster_numbers_s)
+    ##number_of_clusters = np.max(cluster_numbers_s)
+    ##first_cluster = np.min(cluster_numbers_s)
     # Get the number of clusters directly from the atlas to ensure we output files for all clusters.
     [number_of_clusters, number_of_eigenvectors] = atlas.centroids.shape
-    print("<wm_cluster_from_atlas.py> Cluster indices range from:", 0, "to", number_of_clusters)
+    print(f"<{os.path.basename(__file__)}> Cluster indices range from:", 0, "to", number_of_clusters)
     pd_c_list = wma.cluster.mask_all_clusters(output_polydata_s, cluster_numbers_s, number_of_clusters, preserve_point_data=True, preserve_cell_data=True,verbose=True)
     
-    print('<wm_cluster_atlas.py> Saving output cluster files in directory:', outdir)
+    print(f'<{os.path.basename(__file__)}> Saving output cluster files in directory:', outdir)
     cluster_sizes = list()
     cluster_fnames = list()
     for c in range(number_of_clusters):
         mask = cluster_numbers_s == c
-        cluster_size = numpy.sum(mask)
+        cluster_size = np.sum(mask)
         cluster_sizes.append(cluster_size)
         #pd_c = wma.filter.mask(output_polydata_s, mask, preserve_point_data=True, preserve_cell_data=True,verbose=False)
         pd_c = pd_c_list[c]
         # The clusters are stored starting with 1, not 0, for user friendliness.
-        fname_c = 'cluster_{0:05d}.vtp'.format(c+1)
+        fname_c = f'cluster_{c+1:05d}.vtp'
         # save the filename for writing into the MRML file
         fnames.append(fname_c)
         # prepend the output directory
@@ -260,19 +259,19 @@ def main():
         wma.io.write_polydata(pd_c, fname_c)
         color_c = color[mask,:]
         if cluster_size:
-            cluster_colors.append(numpy.mean(color_c,0))
+            cluster_colors.append(np.mean(color_c,0))
         else:
             # avoid error if empty mean above
             cluster_colors.append(color[0,:])
             
     # Notify user if some clusters empty
-    print("<wm_cluster_atlas.py> Checking for empty clusters (can be due to anatomical variability or too few fibers analyzed).")
+    print(f"<{os.path.basename(__file__)}> Checking for empty clusters (can be due to anatomical variability or too few fibers analyzed).")
     for sz, fname in zip(cluster_sizes,cluster_fnames):
         if sz == 0:
             print(sz, ":", fname)
         
-    cluster_sizes = numpy.array(cluster_sizes)
-    print("<wm_cluster_from_atlas.py> Mean number of fibers per cluster:", numpy.mean(cluster_sizes), "Range:", numpy.min(cluster_sizes), "..", numpy.max(cluster_sizes))
+    cluster_sizes = np.array(cluster_sizes)
+    print(f"<{os.path.basename(__file__)}> Mean number of fibers per cluster:", np.mean(cluster_sizes), "Range:", np.min(cluster_sizes), "..", np.max(cluster_sizes))
     
     # Estimate subsampling ratio to display approx. show_fibers total fibers
     number_fibers = len(cluster_numbers_s)
@@ -280,29 +279,30 @@ def main():
         ratio = 1.0
     else:
         ratio = show_fibers / number_fibers
-    print("<wm_cluster_atlas.py> Subsampling ratio for display of", show_fibers, "total fibers estimated as:", ratio)
+    print(f"<{os.path.basename(__file__)}> Subsampling ratio for display of", show_fibers, "total fibers estimated as:", ratio)
     
     # Write the MRML file into the directory where the polydatas were already stored
     fname = os.path.join(outdir, 'clustered_tracts.mrml')
-    wma.mrml.write(fnames, numpy.around(numpy.array(cluster_colors), decimals=3), fname, ratio=ratio)
+    wma.mrml.write(fnames, np.around(np.array(cluster_colors), decimals=3), fname, ratio=ratio)
     
     # Also write one with 100%% of fibers displayed
     fname = os.path.join(outdir, 'clustered_tracts_display_100_percent.mrml')
-    wma.mrml.write(fnames, numpy.around(numpy.array(cluster_colors), decimals=3), fname, ratio=1.0)
+    wma.mrml.write(fnames, np.around(np.array(cluster_colors), decimals=3), fname, ratio=1.0)
     
     # View the whole thing in png format for quality control
     if render:
     
         try:
-            print('<wm_cluster_from_atlas.py> Rendering and saving images of clustered subject.')
+            print(f'<{os.path.basename(__file__)}> Rendering and saving images of clustered subject.')
             ren = wma.render.render(output_polydata_s, 1000, data_mode='Cell', data_name='EmbeddingColor',verbose=False)
             ren.save_views(outdir)
             del ren
         except:
-            print('<wm_cluster_from_atlas.py> No X server available.')
+            print(f'<{os.path.basename(__file__)}> No X server available.')
     
     print("\n==========================")
-    print('<wm_cluster_from_atlas.py> Done clustering subject.  See output in directory:\n ', outdir, '\n')
-
+    print(f'<{os.path.basename(__file__)}> Done clustering subject.  See output in directory:\n ', outdir, '\n')
+    
+    
 if __name__ == '__main__':
     main()

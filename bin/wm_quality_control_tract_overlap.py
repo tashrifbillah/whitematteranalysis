@@ -1,36 +1,31 @@
 #!/usr/bin/env python
-#!/Library/Frameworks/EPD64.framework/Versions/Current/bin/ipython
+# -*- coding: utf-8 -*-
 
-# Run registration on the test dataset.
 
 import argparse
 import os
-import numpy
-import vtk
 import time
+import warnings
 
-try:
-    import whitematteranalysis as wma
-except:
-    print("<wm_register.py> Error importing white matter analysis package\n")
-    raise
+import numpy as np
+import vtk
 
-HAVE_PLT = 1
+import whitematteranalysis as wma
+from whitematteranalysis.utils.opt_pckg import optional_package
 
-try:
-    import matplotlib.pyplot as plt
-except:
-    print("<wm_quality_control.py> Error importing matplotlib.pyplot package, can't plot quality control data.\n")
-    HAVE_PLT = 0    
+matplotlib, have_mpl, _ = optional_package("matplotlib")
+plt, _, _ = optional_package("matplotlib.pyplot")
 
-def main():
-    #-----------------
-    # Parse arguments
-    #-----------------
+if not have_mpl:
+    warnings.warn(matplotlib._msg)
+    warnings.warn("Cannot plot quality control data.")
+
+
+def _build_arg_parser():
+
     parser = argparse.ArgumentParser(
         description="Perform quality control to render the overlap of two tracts.",
         epilog="Written by Fan Zhang (fzhang@bwh.harvard.edu).")
-    
     parser.add_argument(
         'inputTract1',
         help='Input tract 1 as vtkPolyData (.vtk or .vtp).')
@@ -40,22 +35,33 @@ def main():
     parser.add_argument(
         'outputDirectory',
         help='Quality control information will be stored in the output directory, which will be created if it does not exist.')
-     
-    args = parser.parse_args()
-    
-    print("<quality_control> Starting...")
+
+    return parser
+
+
+def _parse_args(parser):
+
+    return parser.parse_args()
+
+
+def main():
+
+    parser = _build_arg_parser()
+    args = _parse_args(parser)
+
+    print(f"<{os.path.basename(__file__)}> Starting...")
     
     if not os.path.exists(args.inputTract1):
-        print("<quality_control> Error: Input tract 1", args.inputTract1, "does not exist.")
+        print(f"<{os.path.basename(__file__)}> Error: Input tract 1 {args.inputTract1} does not exist.")
         exit()
     
     if not os.path.exists(args.inputTract2):
-        print("<quality_control> Error: Input tract 2", args.inputTract2, "does not exist.")
+        print(f"<{os.path.basename(__file__)}> Error: Input tract 2 {args.inputTract2} does not exist.")
         exit()
     
     output_dir = args.outputDirectory
     if not os.path.exists(output_dir):
-        print("<quality_control> Output directory", output_dir, "does not exist, creating it.")
+        print(f"<{os.path.basename(__file__)}> Output directory {output_dir} does not exist, creating it.")
         os.makedirs(output_dir)
     
     input_polydatas = []
@@ -64,7 +70,7 @@ def main():
     
     number_of_subjects = len(input_polydatas)
     
-    if HAVE_PLT:
+    if have_mpl:
         plt.figure(1)
     
     # Loop over subjects and check each
@@ -72,7 +78,7 @@ def main():
     appender = vtk.vtkAppendPolyData()
     for fname in input_polydatas:
         subject_id = os.path.splitext(os.path.basename(fname))[0]
-        print("Subject ", subject_idx, "/", number_of_subjects, "ID:", subject_id)
+        print(f"Subject {subject_idx} / {number_of_subjects} ID: {subject_id}")
     
         # Read data
         pd = wma.io.read_polydata(fname)
@@ -81,8 +87,8 @@ def main():
     
         number_rendered_fibers = 800
         pd3 = wma.filter.downsample(pd2, number_rendered_fibers, verbose=False)
-        mask = numpy.ones(number_rendered_fibers)
-        colors = numpy.multiply(mask, subject_idx)
+        mask = np.ones(number_rendered_fibers)
+        colors = np.multiply(mask, subject_idx)
         pd3 = wma.filter.mask(pd3, mask, colors, verbose=False)
         if (vtk.vtkVersion().GetVTKMajorVersion() >= 6.0):
             appender.AddInputData(pd3)
@@ -95,7 +101,7 @@ def main():
         del pd3
         subject_idx += 1
     
-    print("<quality_control> Final step: rendering two vtk files together.")
+    print(f"<{os.path.basename(__file__)}> Final step: rendering two vtk files together.")
     appender.Update()
     pd_all = appender.GetOutput()
     ren = wma.render.render(pd_all, colormap='hot', verbose=False)
